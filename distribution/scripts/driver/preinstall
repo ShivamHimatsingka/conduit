@@ -1,0 +1,7 @@
+#!/bin/bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Shivam Himatsingka
+#
+# Remove a previous copy first so an upgrade never leaves stale files inside the bundle (and its signature intact).
+rm -rf "/Library/Audio/Plug-Ins/HAL/Conduit.driver" 2>/dev/null
+exit 0

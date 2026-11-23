@@ -1,0 +1,27 @@
+name: CI
+on:
+  push: { branches: [main] }
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: |
+          sw_vers; xcodebuild -version; swift --version
+      - name: Driver (universal, -Werror)
+        run: make build
+      - name: Ring buffer + in-process driver harness
+        run: make test
+      - name: Tap engine unit test
+        run: make test-tap
+      - name: Offline latency / drift characterisation
+        run: make test-bench
+      - name: Swift (bridge, app, CLIs)
+        run: swift build -c release
+      # Not run here: `make test-ipc` (Mach bootstrap registration) and `make test-app` (needs a window server).
+      # Run them locally; neither needs sudo.
+      - name: Unsigned installer builds
+        run: scripts/build_release.sh

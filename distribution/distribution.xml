@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="2">
+    <title>Conduit</title>
+    <organization>com.conduit</organization>
+    <domains enable_anywhere="false" enable_currentUserHome="false" enable_localSystem="true"/>
+    <options customize="allow" require-scripts="false" hostArchitectures="arm64,x86_64"/>
+
+    <welcome file="welcome.html" mime-type="text/html"/>
+    <license file="license.txt" mime-type="text/plain"/>
+    <conclusion file="conclusion.html" mime-type="text/html"/>
+
+    <volume-check>
+        <allowed-os-versions><os-version min="14.4"/></allowed-os-versions>
+    </volume-check>
+
+    <choices-outline>
+        <line choice="driver"/>
+        <line choice="app"/>
+    </choices-outline>
+
+    <choice id="driver" title="Conduit Audio Driver" description="The 16-channel virtual audio device (installed in /Library/Audio/Plug-Ins/HAL). Core Audio is restarted once, so audio pauses for a moment." start_selected="true" enabled="false">
+        <pkg-ref id="com.conduit.pkg.driver"/>
+    </choice>
+    <choice id="app" title="Conduit Mixer" description="The menu-bar mixer and routing app (installed in /Applications)." start_selected="true">
+        <pkg-ref id="com.conduit.pkg.app"/>
+    </choice>
+
+    <pkg-ref id="com.conduit.pkg.driver" version="@VERSION@" onConclusion="none">Conduit-Driver.pkg</pkg-ref>
+    <pkg-ref id="com.conduit.pkg.app" version="@VERSION@" onConclusion="none">Conduit-App.pkg</pkg-ref>
+</installer-gui-script>

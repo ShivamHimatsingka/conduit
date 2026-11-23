@@ -1,0 +1,51 @@
+name: Release
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  release:
+    runs-on: macos-15
+    permissions:
+      contents: write
+    env:
+      KEYCHAIN: build.keychain
+    steps:
+      - uses: actions/checkout@v4
+      - name: Import signing certificates
+        env:
+          APP_CERT_P12: ${{ secrets.DEVELOPER_ID_APPLICATION_P12 }}
+          INSTALLER_CERT_P12: ${{ secrets.DEVELOPER_ID_INSTALLER_P12 }}
+          CERT_PASSWORD: ${{ secrets.CERT_PASSWORD }}
+        run: |
+          KP="$RUNNER_TEMP/$KEYCHAIN"; PW="$(uuidgen)"
+          security create-keychain -p "$PW" "$KP"
+          security set-keychain-settings -lut 21600 "$KP"
+          security unlock-keychain -p "$PW" "$KP"
+          echo "$APP_CERT_P12" | base64 --decode > "$RUNNER_TEMP/app.p12"
+          echo "$INSTALLER_CERT_P12" | base64 --decode > "$RUNNER_TEMP/inst.p12"
+          security import "$RUNNER_TEMP/app.p12" -P "$CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KP"
+          security import "$RUNNER_TEMP/inst.p12" -P "$CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KP"
+          security set-key-partition-list -S apple-tool:,apple: -k "$PW" "$KP"
+          security list-keychains -d user -s "$KP" login.keychain
+      - name: Write notary API key
+        env:
+          NOTARY_KEY_P8: ${{ secrets.NOTARY_API_KEY_P8 }}
+        run: echo "$NOTARY_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
+      - name: Build, sign, notarize, staple
+        env:
+          VERSION: ${{ github.ref_name }}
+          APP_SIGN_IDENTITY: ${{ secrets.APP_SIGN_IDENTITY }}
+          INSTALLER_SIGN_IDENTITY: ${{ secrets.INSTALLER_SIGN_IDENTITY }}
+          NOTARY_KEY_PATH: ${{ runner.temp }}/AuthKey.p8
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
+        run: |
+          export VERSION="${VERSION#v}"
+          scripts/build_release.sh --notarize
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" --generate-notes \
+            build/release/Conduit-*.pkg build/release/Conduit-*.pkg.sha256

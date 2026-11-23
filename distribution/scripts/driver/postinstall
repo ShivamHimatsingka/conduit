@@ -1,0 +1,13 @@
+#!/bin/bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Shivam Himatsingka
+#
+# Runs as root after the driver package is laid down. Core Audio only scans HAL plug-ins when coreaudiod starts,
+# so restart it (launchd respawns it immediately). Never fail the install over this: worst case the user reboots.
+HAL="/Library/Audio/Plug-Ins/HAL/Conduit.driver"
+if [ -d "$HAL" ]; then
+    chown -R root:wheel "$HAL" 2>/dev/null
+    chmod -R go-w "$HAL" 2>/dev/null
+fi
+/usr/bin/killall coreaudiod 2>/dev/null || /bin/launchctl kickstart -k system/com.apple.audio.coreaudiod 2>/dev/null
+exit 0

@@ -28,9 +28,10 @@ final class MixerViewController: NSViewController, MixerModelObserver, NSMenuDel
 
     private let root = MixerRootView()
     private let titleField = NSTextField(labelWithString: "Conduit")
-    private let statusDot = NSView(), status = NSTextField(labelWithString: "")
+    private let pill = StatusPill()
     private let presets = NSPopUpButton(frame: .zero, pullsDown: true)
-    private let windowButton = NSButton(), menuButton = NSButton()
+    private let windowButton = IconButton(symbol: "macwindow.on.rectangle", tip: "Open the mixer in its own window", size: 14)
+    private let menuButton = IconButton(symbol: "ellipsis.circle", tip: "Conduit menu: driver, launch at login, quit…", size: 15)
     private let installButton = NSButton(title: "Install Driver…", target: nil, action: nil)
     private let labels = BusLabelsView()
     let scroll = NSScrollView()
@@ -56,32 +57,27 @@ final class MixerViewController: NSViewController, MixerModelObserver, NSMenuDel
     override func loadView() {
         root.frame = NSRect(x: 0, y: 0, width: Layout.width(pairs: model.pairCount), height: idealHeight)
         root.wantsLayer = true
-        titleField.font = .systemFont(ofSize: 13, weight: .semibold)
-        status.font = .systemFont(ofSize: 10); status.textColor = .secondaryLabelColor; status.lineBreakMode = .byTruncatingTail
-        statusDot.wantsLayer = true; statusDot.layer?.cornerRadius = 3.5
+        titleField.font = .systemFont(ofSize: 15, weight: .semibold)
 
-        presets.menu = NSMenu(); presets.menu?.delegate = self; presets.controlSize = .mini; presets.font = .systemFont(ofSize: 10)
+        presets.menu = NSMenu(); presets.menu?.delegate = self; presets.controlSize = .small; presets.font = .systemFont(ofSize: 12)
         presets.toolTip = "Routing presets"
-        for (b, symbol, tip, action) in [(windowButton, "macwindow.on.rectangle", "Open the mixer in its own window", #selector(windowTapped)),
-                                         (menuButton, "ellipsis.circle", "Conduit menu: driver, launch at login, quit…", #selector(menuTapped(_:)))] {
-            b.bezelStyle = .inline; b.isBordered = false; b.imagePosition = .imageOnly
-            b.image = NSImage(systemSymbolName: symbol, accessibilityDescription: tip); b.toolTip = tip
-            b.target = self; b.action = action
-        }
+        windowButton.target = self; windowButton.action = #selector(windowTapped)
+        menuButton.target = self; menuButton.action = #selector(menuTapped(_:))
         windowButton.isHidden = inWindow   // already in a window
 
-        installButton.bezelStyle = .rounded; installButton.controlSize = .mini; installButton.font = .systemFont(ofSize: 10, weight: .medium)
+        installButton.bezelStyle = .rounded; installButton.controlSize = .small; installButton.font = .systemFont(ofSize: 12, weight: .medium)
+        installButton.bezelColor = .controlAccentColor; installButton.contentTintColor = .white
         installButton.target = self; installButton.action = #selector(installTapped); installButton.isHidden = true
 
         scroll.documentView = grid
         scroll.hasVerticalScroller = true; scroll.autohidesScrollers = true; scroll.drawsBackground = false; scroll.borderType = .noBorder
         scroll.scrollerStyle = .overlay
 
-        spectrumPopup.controlSize = .mini; spectrumPopup.font = .systemFont(ofSize: 10)
+        spectrumPopup.controlSize = .small; spectrumPopup.font = .systemFont(ofSize: 11)
         spectrumPopup.target = self; spectrumPopup.action = #selector(spectrumChosen)
-        hint.font = .systemFont(ofSize: 10); hint.textColor = .systemOrange; hint.isHidden = true
+        hint.font = .systemFont(ofSize: 11); hint.textColor = .systemOrange; hint.isHidden = true
 
-        [titleField, statusDot, status, installButton, presets, windowButton, menuButton, labels, scroll, spectrumPopup, spectrum, strips, hint].forEach(root.addSubview)
+        [titleField, pill, installButton, presets, windowButton, menuButton, labels, scroll, spectrumPopup, spectrum, strips, hint].forEach(root.addSubview)
         if let m = presets.menu { menuNeedsUpdate(m) }   // so the pull-down shows its title before first opened
         root.onLayout = { [weak self] in self?.layoutAll() }
         view = root
@@ -94,29 +90,29 @@ final class MixerViewController: NSViewController, MixerModelObserver, NSMenuDel
         let cw = Layout.cellWidth(forWidth: w, pairs: pairs)
         grid.cellW = cw; labels.cellW = cw; strips.cellW = cw
 
-        // Header, right to left.
+        // Header, right to left: ⋯  window  presets  install; then title and status pill on the left.
         var x = w - pad
-        menuButton.frame = CGRect(x: x - 20, y: 5, width: 20, height: 20); x -= 22
-        if !windowButton.isHidden { windowButton.frame = CGRect(x: x - 20, y: 5, width: 20, height: 20); x -= 22 }
-        presets.frame = CGRect(x: x - 78, y: 6, width: 78, height: 18); x -= 82
-        if !installButton.isHidden { installButton.frame = CGRect(x: x - 96, y: 6, width: 96, height: 18); x -= 100 }
+        menuButton.frame = CGRect(x: x - 26, y: 12, width: 26, height: 26); x -= 30
+        if !windowButton.isHidden { windowButton.frame = CGRect(x: x - 26, y: 12, width: 26, height: 26); x -= 30 }
+        presets.frame = CGRect(x: x - 88, y: 13, width: 88, height: 24); x -= 94
+        if !installButton.isHidden { installButton.frame = CGRect(x: x - 128, y: 12, width: 128, height: 26); x -= 134 }
         titleField.sizeToFit()
-        titleField.frame = CGRect(x: pad, y: 7, width: titleField.frame.width, height: 16)
-        statusDot.frame = CGRect(x: titleField.frame.maxX + 8, y: 11.5, width: 7, height: 7)
-        status.frame = CGRect(x: statusDot.frame.maxX + 5, y: 8, width: max(30, x - statusDot.frame.maxX - 8), height: 14)
+        titleField.frame = CGRect(x: pad, y: 14, width: titleField.frame.width, height: 22)
+        let pillX = titleField.frame.maxX + 12
+        pill.frame = CGRect(x: pillX, y: 14, width: max(60, min(pill.fittingWidth, x - pillX - 4)), height: 22)
 
         labels.frame = CGRect(x: 0, y: Layout.headerH, width: w, height: Layout.labelsH)
-        let hintH: CGFloat = hint.isHidden ? 0 : 30
+        let hintH: CGFloat = hint.isHidden ? 0 : 34
         let bottomTop = h - Layout.bottomH - hintH
         let scrollTop = Layout.headerH + Layout.labelsH
         scroll.frame = CGRect(x: 0, y: scrollTop, width: w, height: max(Layout.rowH, bottomTop - scrollTop))
         grid.frame.size.width = w
 
-        let leftW = Layout.leftWidth
-        spectrumPopup.frame = CGRect(x: pad, y: bottomTop + 4, width: leftW - 6, height: 16)
-        spectrum.frame = CGRect(x: pad, y: bottomTop + 24, width: leftW - 6, height: Layout.bottomH - 28)
-        strips.frame = CGRect(x: 0, y: bottomTop + 2, width: w, height: Layout.bottomH - 4)
-        hint.frame = CGRect(x: pad, y: h - hintH + 2, width: w - 2 * pad, height: 28)
+        let leftW = Layout.leftWidth - 14
+        spectrumPopup.frame = CGRect(x: pad, y: bottomTop + 6, width: leftW, height: 22)
+        spectrum.frame = CGRect(x: pad, y: bottomTop + 34, width: leftW, height: Layout.bottomH - 44)
+        strips.frame = CGRect(x: 0, y: bottomTop + 4, width: w, height: Layout.bottomH - 8)
+        hint.frame = CGRect(x: pad, y: h - hintH + 4, width: w - 2 * pad, height: 28)
     }
 
     // MARK: Observation
@@ -125,12 +121,10 @@ final class MixerViewController: NSViewController, MixerModelObserver, NSMenuDel
         grid.reload()
         strips.reload()
         labels.pairs = model.pairCount
-        status.stringValue = model.statusShort
-        status.toolTip = model.statusText
         let healthy = model.driverConnected && model.lastError == nil
-        statusDot.layer?.backgroundColor = (model.lastError != nil ? NSColor.systemRed : healthy ? NSColor.systemGreen : NSColor.systemOrange).cgColor
-        if let err = model.lastError { status.stringValue = "Capture error"; status.toolTip = err }
-
+        let color: NSColor = model.lastError != nil ? .systemRed : healthy ? .systemGreen : .systemOrange
+        if let err = model.lastError { pill.set(text: "Capture error", color: color, tooltip: err) }
+        else { pill.set(text: model.statusShort, color: color, tooltip: model.statusText) }
         switch (model.driverStatus, model.connectRefused) {
         case (_, true): installButton.title = "Reinstall Driver…"; installButton.isHidden = false
         case (.notInstalled, _): installButton.title = "Install Driver…"; installButton.isHidden = false

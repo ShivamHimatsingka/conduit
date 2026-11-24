@@ -117,7 +117,7 @@ enum SelfTest {
         let quit = main.items.first?.submenu?.items.first { $0.title == "Quit Conduit" }
         check(quit?.keyEquivalent == "q" && quit?.keyEquivalentModifierMask == .command, "⌘Q quits")
         check(main.items.first?.submenu?.items.contains { $0.title == "Hide Conduit" && $0.keyEquivalent == "h" } == true, "⌘H hides")
-        check(Layout.height(rows: 5) < 260 && Layout.width(pairs: 8) < 500, "compact: 5 sources fit in \(Int(Layout.width(pairs: 8)))×\(Int(Layout.height(rows: 5))) pt")
+        check(Layout.height(rows: 5) < 340 && Layout.width(pairs: 8) < 540, "compact: 5 sources fit in \(Int(Layout.width(pairs: 8)))×\(Int(Layout.height(rows: 5))) pt")
 
         print("per-frame cost (model poll + all meters + FFT every 2nd frame)")
         let vc = MixerViewController(model: m, host: nil)

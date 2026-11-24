@@ -113,10 +113,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             w.collectionBehavior = [.fullScreenPrimary]
             w.isReleasedWhenClosed = false
             w.contentMinSize = NSSize(width: Layout.width(pairs: model.pairCount), height: Layout.height(rows: Layout.minRows))
-            w.setFrameAutosaveName("ConduitMixerWindow")
+            w.setFrameAutosaveName("ConduitMixerWindowV2")
             w.delegate = self
             window = w
-            if !w.setFrameUsingName("ConduitMixerWindow") { w.center() }
+            if !w.setFrameUsingName("ConduitMixerWindowV2") { w.center() }
         }
         window?.level = floatOnTop ? .floating : .normal
         window?.makeKeyAndOrderFront(nil)

@@ -61,7 +61,7 @@ macOS will ask for **Audio Capture** permission the first time you capture an ap
 * **Routing matrix** of sources × eight stereo buses (1-2 … 15-16). Click a cell to route, drag across cells to paint. One source can feed several buses.
 * **Mixer controls**: level and mute per source and per bus, mono-fold, and *silence the app on its normal output while it is captured* so you do not hear it twice.
 * **Meters at 60 fps** (peak, RMS, peak-hold) and a **32-band FFT spectrum**, using Accelerate and Core Animation: about 0.2 % of one CPU core while the mixer is open, nothing while it is closed.
-* **Compact by design**: five sources fit in 496 × 244 points. The popover sizes itself to your sources, and the window stretches with you; nothing is wasted on empty space.
+* **Easy on screen space, easy on the eyes**: normal-size text and controls, with only the routing matrix squeezed (22-point crosspoint columns, small dots, stacked channel labels). Five sources fit in 530 × 330 points; the popover sizes itself to your sources, and the window stretches with you.
 * **Remembers everything**: routing, levels, mutes, bus settings, the spectrum choice and whether the window was open are restored on launch, and your bus levels are re-applied to the driver. Saved to disk within a moment of every change, so even a crash loses nothing.
 * **Presets** saved as plain JSON for switching between setups.
 * **Native menu-bar app** that opens as a **normal macOS window** when you want one (Dock icon, full menu bar, full-screen capable, optional keep-on-top), dark and light mode, launch at login.
@@ -115,7 +115,7 @@ That is exactly two buffers: **the driver adds no latency of its own**. Sample-r
 * **Menu-bar icon**: click it for the mixer popover. Right-click it for the same menu as the **⋯** button in the header: *Open Mixer in a Window*, *Reconnect to Driver*, *Install / Update / Uninstall Audio Driver*, *Launch at Login*, *Show Presets in Finder*, *About*, **Quit Conduit**.
 * **Window mode**: *Open Mixer in a Window* (or the window button in the header, or double-clicking Conduit in Finder) gives you a standard resizable window. While it is open, Conduit also appears in the Dock and shows its full menu bar (Conduit, File, Edit, View, Window, Help; ⌘S saves a preset, ⌘Q quits, ⌘⌃F is full screen). Close the window and it goes back to the menu bar. Conduit reopens the window next time if that is how you left it.
 * **Grid**: rows are sources, columns are buses. Click a cell to route, drag across cells to paint. Bus **1-2** = input channels 1-2 of "Conduit 16ch", bus **3-4** = channels 3-4, and so on. Apps that only read a stereo pair see bus 1-2; DAWs can use all 16 channels.
-* **Per source** (the **⋯** on the row): *Mono*, *Silence on normal output while captured*, *Show spectrum*. Hover a truncated name to see it in full.
+* **Per source** (the **⋯** on the row): *Mono*, *Silence on normal output while captured*, *Show spectrum*. Hover a name to see it in full; double-click any fader to reset it to 0 dB.
 * **Playing straight to Conduit**: you can also select "Conduit 16ch" as an app's *output* device; its channels 1-2 then appear on the device's input channels 1-2.
 * **Presets** (top right): *Save Current Routing As…*, load, import, delete. They are JSON files in `~/Library/Application Support/Conduit/Presets/`. Your *current* setup is saved automatically and needs no preset.
 

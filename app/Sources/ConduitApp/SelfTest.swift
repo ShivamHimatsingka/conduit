@@ -80,6 +80,32 @@ enum SelfTest {
         m.apply(snap)
         check(m.routing(for: "app:com.spotify.client").gainDB == -9 && m.routing(for: "app:com.spotify.client").mute, "apply(snapshot) restores state")
 
+        print("driver installer logic")
+        check(DriverInstaller.shellQuote("/a b/it's") == "'/a b/it'\\''s'", "shell quoting survives spaces and apostrophes")
+        check(DriverInstaller.appleScriptEscape("say \"hi\" \\ ok") == "say \\\"hi\\\" \\\\ ok", "AppleScript string escaping")
+        let script = DriverInstaller.installScript(source: URL(fileURLWithPath: "/Applications/My App/Conduit.app/Contents/Resources/Conduit.driver"),
+                                                   destination: DriverInstaller.installedURL)
+        check(script.contains("--noqtn") && script.contains("chown -R root:wheel") && script.contains("coreaudiod") && script.hasPrefix("set -e;"),
+              "install script copies without quarantine, fixes ownership, restarts coreaudiod")
+        check(!DriverInstaller.uninstallScript(destination: DriverInstaller.installedURL).contains("ditto"), "uninstall script only removes")
+        do {
+            let fm = FileManager.default, root = fm.temporaryDirectory.appendingPathComponent("conduit-drv-\(getpid())")
+            defer { try? fm.removeItem(at: root) }
+            func fake(_ name: String, version: String, binary: String) throws -> URL {
+                let u = root.appendingPathComponent(name + ".driver")
+                try fm.createDirectory(at: u.appendingPathComponent("Contents/MacOS"), withIntermediateDirectories: true)
+                try (["CFBundleShortVersionString": version] as NSDictionary).write(to: u.appendingPathComponent("Contents/Info.plist"))
+                try Data(binary.utf8).write(to: u.appendingPathComponent("Contents/MacOS/Conduit"))
+                return u
+            }
+            let bundled = try fake("bundled", version: "0.0.2", binary: "binary-A")
+            check(DriverInstaller.status(bundled: nil, installed: bundled) == .notBundled, "no bundled driver -> nothing to offer")
+            check(DriverInstaller.status(bundled: bundled, installed: root.appendingPathComponent("absent.driver")) == .notInstalled, "missing install detected")
+            check(DriverInstaller.status(bundled: bundled, installed: try fake("same", version: "0.0.2", binary: "binary-A")) == .upToDate, "identical copy is up to date")
+            check(DriverInstaller.status(bundled: bundled, installed: try fake("old", version: "0.0.1", binary: "binary-A")) == .outdated(installed: "0.0.1"), "older version is outdated")
+            check(DriverInstaller.status(bundled: bundled, installed: try fake("rebuilt", version: "0.0.2", binary: "binary-B")) == .outdated(installed: "0.0.2"), "same version but different binary is outdated")
+        } catch { check(false, "driver status fixtures: \(error)") }
+
         print("per-frame cost (model poll + all meters + FFT every 2nd frame)")
         let vc = MixerViewController(model: m, host: nil)
         let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 644, height: 470), styleMask: [.borderless], backing: .buffered, defer: false)

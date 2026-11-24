@@ -1,6 +1,8 @@
 # Releasing Conduit
 
-A release is one signed, notarized, stapled installer package, `Conduit-<version>.pkg`, containing two components:
+**The primary release artifact is `Conduit.app`, which embeds the driver and installs it on first launch** (`scripts/make_app.sh`, zipped with `ditto -c -k --keepParent --norsrc --noextattr`). When notarizing, the embedded `Conduit.driver` is signed with the hardened runtime and a secure timestamp first (the script does this when `SIGN_IDENTITY` is set) so the app's notarization ticket covers it.
+
+The installer package below is an optional second channel (for example for managed deployments). It is a signed, notarized, stapled `Conduit-<version>.pkg` containing two components:
 
 | Component | Installs | Notes |
 |---|---|---|

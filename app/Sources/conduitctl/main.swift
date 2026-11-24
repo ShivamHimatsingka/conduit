@@ -89,6 +89,7 @@ case "info":
     print("channels \(link.channels)")
     if let c = link.clock() { print("clock rate \(Int(c.sampleRate)) running \(c.running) seed \(c.seed)") }
     print("blocks \(link.blockCount)")
+    print("instance \(String(link.instanceID, radix: 16))")
     print("mute \(String(link.muteMask, radix: 2)) solo \(String(link.soloMask, radix: 2)) busmute \(String(link.busMuteMask, radix: 2))")
 
 case "meters":

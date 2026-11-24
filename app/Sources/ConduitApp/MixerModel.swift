@@ -33,6 +33,8 @@ final class MixerModel {
     private(set) var rows: [Row] = []
     private(set) var statusText = "Looking for the Conduit driver…"
     private(set) var driverConnected = false
+    private(set) var driverStatus: DriverInstaller.Status = .notBundled
+    private var refreshCount = 0
     private(set) var lastError: String?
     private(set) var hint: String?
     var spectrumSourceID: String? { didSet { spectrum.reset(); notify() } }
@@ -70,6 +72,7 @@ final class MixerModel {
         if demo { loadDemo(); return }
         if persistsState, let last = try? PresetStore.load(name: "_last") { adopt(last, reconcileNow: false) }
         refreshSources()
+        driverStatus = DriverInstaller.status()
         monitor = ProcessMonitor { [weak self] in Task { @MainActor in self?.refreshSources() } }
         maintenance = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refreshSources() }
@@ -100,20 +103,43 @@ final class MixerModel {
     // MARK: Source discovery
     func refreshSources() {
         guard !demo else { return }
+        refreshCount += 1
+        if refreshCount % 4 == 1 { driverStatus = DriverInstaller.status() }      // hashes ~1 MB: not every tick
+        if refreshCount % 4 == 0 { dropLinkIfDriverRestarted() }                    // a restarted coreaudiod leaves our mapping stale
         connectIfNeeded()
-        let wasConnected = driverConnected
         driverConnected = link != nil
         apps = ProcessDiscovery.apps()
         mics = DeviceDiscovery.inputDevices()
         if driverConnected {
             let rate = link?.clock().map { Int($0.sampleRate) } ?? 48000
             statusText = "Conduit driver connected · \(link?.channels ?? 0) ch · \(rate / 1000).\((rate % 1000) / 100) kHz"
+            if case .outdated = driverStatus { statusText += " · update available" }
         } else {
-            statusText = "Driver not found · capture is meter-only"
+            switch driverStatus {
+            case .notInstalled: statusText = "Audio driver not installed · capture is meter-only"
+            case .outdated: statusText = "Audio driver needs updating · capture is meter-only"
+            default: statusText = "Driver not found · capture is meter-only"
+            }
         }
         rebuildRows()
         reconcile()
-        if wasConnected != driverConnected { notify() } else { notify() }
+        notify()
+    }
+
+    /// The driver publishes a random id per coreaudiod lifetime. If it changed (driver updated, coreaudiod restarted) or the
+    /// driver vanished, our shared-memory mapping is stale: drop it, and the capture session built on it, and reconnect.
+    private func dropLinkIfDriverRestarted() {
+        guard let link else { return }
+        let probe = ConduitLink.probeInstanceID()
+        guard probe == nil || (link.instanceID != 0 && probe != link.instanceID) else { return }
+        self.link = nil
+        session?.stop(); session = nil; activeIDs = []; activeSignature = ""
+    }
+
+    /// Called after the driver is installed, updated or removed.
+    func driverChanged() {
+        driverStatus = DriverInstaller.status()
+        reconnect()
     }
 
     private func rebuildRows() {

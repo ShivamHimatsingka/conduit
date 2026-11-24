@@ -9,6 +9,7 @@
 
 #include <mach/mach.h>
 #include <mach/mach_vm.h>
+#include <stdlib.h>
 #include <sys/mman.h>
 
 #include "Config.hpp"
@@ -40,6 +41,9 @@ public:
         ::mlock(reinterpret_cast<void*>(addr_), bytes_);  // best effort
         shared_ = reinterpret_cast<ConduitShared*>(addr_);
         conduit_shared_init(shared_, kChannels, kRingFrames, ringBytes, ringOffset, total);
+        // Fresh identity for this driver instance. A restarted coreaudiod creates a new region with a new ID, which is how
+        // the app notices its mapping is stale. Written before any client can connect (the Mach server starts later).
+        shared_->header.instanceID = (static_cast<std::uint64_t>(arc4random()) << 32) | arc4random() | 1u;
         appRing_ = TimelineRing::create(reinterpret_cast<std::uint8_t*>(addr_) + ringOffset, kChannels, kRingFrames);
         if (!appRing_.valid()) return false;
 

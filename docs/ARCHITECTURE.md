@@ -293,3 +293,15 @@ The engine keeps writes contiguous and only re-aligns when its clock disagrees w
 | `Conduit --uitest` | The real views, driven by genuine `NSEvent` mouse events through `NSWindow.sendEvent`: the row switch, click-to-route, drag-painting and drag-erasing across matrix cells, source and bus faders, mute buttons, the spectrum picker; then renders light and dark screenshots of the live UI | 18/18 pass |
 
 These found and fixed three real defects that the hardware-free suites could not: (1) driver meters keep their last RMS value when no audio is flowing, so a stale level was drawn on an idle bus (the app now ignores driver meters while the device clock is stopped); (2) empty matrix cells were nearly invisible in light mode over the popover's vibrant background; (3) the first click on the matrix was swallowed when the floating panel was not the key window.
+
+
+## In-app driver installer (v0.0.2)
+
+One download is enough: `Conduit.app` carries the driver in `Contents/Resources/Conduit.driver` and installs it itself.
+
+* **Where it lives:** `app/Sources/ConduitApp/DriverInstaller.swift`. Status is a pure function of two paths (bundled vs `/Library/Audio/Plug-Ins/HAL/Conduit.driver`): *not installed*, *up to date*, or *outdated* (different version **or** different binary hash, so a rebuilt driver with the same version is still updated).
+* **How it installs:** one shell script run through `do shell script … with administrator privileges` (the standard macOS password prompt): create the HAL folder, remove the old bundle, `ditto --noqtn` the new one (so the download's quarantine flag does not follow it into `/Library`), `chown root:wheel`, `chmod go-w`, restart `coreaudiod`. No helper tool, no launch daemon, no persistent elevated rights. Cancelling the prompt changes nothing.
+* **When it asks:** once per bundled driver version at launch if the driver is missing or outdated ("Not Now" is remembered per version); always available from the right-click menu and from an *Install/Update Driver…* button in the mixer header; *Uninstall Audio Driver…* removes it again.
+* **Staying connected across restarts:** the driver publishes a random `instanceID` in the shared header for each `coreaudiod` lifetime. The app probes it every ~6 s; if it changes, or the driver disappears, the app drops its stale mapping and capture session and reconnects. Tested with a real `coreaudiod` restart (`Conduit --staletest`).
+* **Scriptable:** `Conduit --install-driver`, `--uninstall-driver`, `--driver-status`.
+* **Tested:** status/quoting/escaping logic in `--selftest` (9 checks, using temporary fake bundles); the full flow live (`--install-driver` through the real admin prompt: installed `root:wheel`, no quarantine attribute, version matches, signature valid, device appears, loopback measured at 2.667 ms for 64 frames); reconnect after a restart.

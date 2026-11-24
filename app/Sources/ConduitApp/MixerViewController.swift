@@ -6,6 +6,7 @@ import ConduitBridge
 @MainActor
 protocol MixerHost: AnyObject {
     func detachMixer()
+    func installDriver()
     func beginModal()
     func endModal()
 }
@@ -26,6 +27,7 @@ final class MixerViewController: NSViewController, MixerModelObserver, NSMenuDel
     private let statusDot = NSView(), status = NSTextField(labelWithString: "")
     private let presets = NSPopUpButton(frame: .zero, pullsDown: true)
     private let detach = NSButton()
+    private let installButton = NSButton(title: "Install Driver…", target: nil, action: nil)
     private let labels = BusLabelsView()
     let scroll = NSScrollView()
     let grid: MixerGridView
@@ -61,6 +63,8 @@ final class MixerViewController: NSViewController, MixerModelObserver, NSMenuDel
         detach.image = NSImage(systemSymbolName: "macwindow.on.rectangle", accessibilityDescription: "Detach mixer")
         detach.toolTip = "Detach into a floating window"; detach.target = self; detach.action = #selector(detachTapped)
 
+        installButton.bezelStyle = .rounded; installButton.controlSize = .small; installButton.font = .systemFont(ofSize: 11, weight: .medium)
+        installButton.keyEquivalent = ""; installButton.target = self; installButton.action = #selector(installTapped); installButton.isHidden = true
         scroll.documentView = grid
         scroll.hasVerticalScroller = true; scroll.autohidesScrollers = true; scroll.drawsBackground = false; scroll.borderType = .noBorder
         scroll.scrollerStyle = .overlay
@@ -70,7 +74,7 @@ final class MixerViewController: NSViewController, MixerModelObserver, NSMenuDel
         spectrumPopup.target = self; spectrumPopup.action = #selector(spectrumChosen)
         hint.font = .systemFont(ofSize: 11); hint.textColor = .systemOrange; hint.isHidden = true
 
-        [titleField, statusDot, status, presets, detach, labels, scroll, spectrumTitle, spectrumPopup, spectrum, busTitle, strips, hint].forEach(root.addSubview)
+        [titleField, statusDot, status, installButton, presets, detach, labels, scroll, spectrumTitle, spectrumPopup, spectrum, busTitle, strips, hint].forEach(root.addSubview)
         if let m = presets.menu { menuNeedsUpdate(m) }   // so the pull-down shows its title before first opened
         root.onLayout = { [weak self] in self?.layoutAll() }
         view = root
@@ -83,7 +87,9 @@ final class MixerViewController: NSViewController, MixerModelObserver, NSMenuDel
         statusDot.frame = CGRect(x: pad + 82, y: 16, width: 8, height: 8)
         presets.frame = CGRect(x: w - pad - 26 - 4 - 110, y: 8, width: 110, height: 22)
         detach.frame = CGRect(x: w - pad - 22, y: 9, width: 22, height: 22)
-        status.frame = CGRect(x: pad + 96, y: 11, width: max(40, presets.frame.minX - (pad + 96) - 8), height: 16)
+        let installW: CGFloat = installButton.isHidden ? 0 : 118
+        installButton.frame = CGRect(x: presets.frame.minX - 8 - installW, y: 9, width: installW, height: 22)
+        status.frame = CGRect(x: pad + 96, y: 11, width: max(40, installButton.frame.minX - (pad + 96) - 8), height: 16)
 
         labels.frame = CGRect(x: 0, y: 38, width: w, height: 22)
         let hintH: CGFloat = hint.isHidden ? 0 : 30
@@ -108,6 +114,11 @@ final class MixerViewController: NSViewController, MixerModelObserver, NSMenuDel
         labels.pairs = model.pairCount
         status.stringValue = model.lastError.map { "Capture error: \($0)" } ?? model.statusText
         statusDot.layer?.backgroundColor = (model.lastError != nil ? NSColor.systemRed : model.driverConnected ? NSColor.systemGreen : NSColor.systemOrange).cgColor
+        switch model.driverStatus {
+        case .notInstalled: installButton.title = "Install Driver…"; installButton.isHidden = false
+        case .outdated: installButton.title = "Update Driver…"; installButton.isHidden = false
+        default: installButton.isHidden = true
+        }
         hint.stringValue = model.hint ?? ""
         hint.isHidden = model.hint == nil
 
@@ -147,6 +158,7 @@ final class MixerViewController: NSViewController, MixerModelObserver, NSMenuDel
 
     // MARK: Actions
     @objc private func detachTapped() { host?.detachMixer() }
+    @objc private func installTapped() { host?.installDriver() }
 
     @objc private func spectrumChosen() { model.spectrumSourceID = spectrumPopup.selectedItem?.representedObject as? String }
 

@@ -36,6 +36,28 @@ enum LiveTest {
         try (h + pcm).write(to: url)
     }
 
+    /// `Conduit --staletest`: connect, then wait for coreaudiod to be restarted by someone else (e.g. a driver update) and
+    /// check that the model notices its mapping is stale and reconnects to the new driver instance.
+    static func runStaleTest() -> Bool {
+        let model = MixerModel(); model.persistsState = false; model.start()
+        for _ in 0..<30 where !model.driverConnected { RunLoop.main.run(until: Date().addingTimeInterval(0.1)); model.refreshSources() }
+        guard let first = model.link, first.instanceID != 0 else { print("STALE TEST ABORTED: not connected to a driver that reports an instance id"); return false }
+        let id = first.instanceID
+        print("connected to driver instance \(String(id, radix: 16)); waiting up to 120 s for coreaudiod to restart")
+        var sawDisconnect = false
+        let end = Date().addingTimeInterval(120)
+        while Date() < end {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.5)); model.refreshSources()
+            if !model.driverConnected && !sawDisconnect { sawDisconnect = true; print("  driver went away: model dropped its stale link") }
+            if let l = model.link, model.driverConnected, l.instanceID != id {
+                print("  reconnected to new driver instance \(String(l.instanceID, radix: 16)) (disconnect seen: \(sawDisconnect))")
+                print("STALE TEST PASSED"); return true
+            }
+        }
+        print("STALE TEST FAILED: still on the old instance")
+        return false
+    }
+
     static func run() -> Bool {
         let model = MixerModel()
         model.persistsState = false   // never read or write the user's saved routing

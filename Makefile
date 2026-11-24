@@ -16,7 +16,7 @@ MANUFACTURER  ?= Conduit Audio
 BUNDLE_ID     ?= com.conduit.driver
 MACH_SERVICE  ?= $(BUNDLE_ID).ipc
 DRIVER_NAME   ?= Conduit
-VERSION       ?= 0.1.0
+VERSION       ?= 0.0.2
 FACTORY_UUID  ?= DFC5549D-39B8-42EF-8A6A-A2496570C2BB
 # "-" = ad-hoc. For distribution: SIGN_IDENTITY="Developer ID Application: ..." SIGN_FLAGS="--timestamp --options runtime"
 # (scripts/build_release.sh does this). The driver needs no entitlements.
@@ -33,7 +33,7 @@ SRC         := $(wildcard driver/src/*.cpp)
 HDR         := $(wildcard driver/src/*.hpp shared/include/*.h)
 
 ARCH_FLAGS := $(foreach a,$(ARCHS),-arch $(a))
-CXXFLAGS   := -std=c++20 -O3 -g -Wall -Wextra -Wpedantic -Werror \
+CXXFLAGS   := -std=c++20 -O3 -Wall -Wextra -Wpedantic -Werror \
               -Ishared/include -fno-exceptions -fno-rtti -fvisibility=hidden -fvisibility-inlines-hidden \
               -mmacosx-version-min=$(MIN_MACOS) $(ARCH_FLAGS) \
               -DCONDUIT_CHANNELS=$(CHANNELS) \

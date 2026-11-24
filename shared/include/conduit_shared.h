@@ -36,6 +36,7 @@ typedef struct __attribute__((aligned(64))) {
     uint32_t magic, version, headerBytes, regionBytes;
     uint32_t channels, maxChannels, ringOffset, ringBytes;
     uint32_t ringFrames;
+    uint64_t instanceID;  /* random per driver process lifetime: lets the app notice that coreaudiod restarted (0 = unknown) */
 } ConduitSharedHeader;
 
 /* Driver-written. Seqlock: `seq` is odd while the driver is updating. */
@@ -118,6 +119,7 @@ static inline void conduit_shared_init(ConduitShared* s, uint32_t channels, uint
 }
 
 static inline uint32_t conduit_channels(const ConduitShared* s) { return s->header.channels; }
+static inline uint64_t conduit_instance_id(const ConduitShared* s) { return __atomic_load_n(&s->header.instanceID, __ATOMIC_RELAXED); }
 
 /* ---- control plane (app writes, driver reads on the RT thread) ------- */
 static inline bool conduit_ch_ok(const ConduitShared* s, uint32_t ch) { return ch < s->header.channels; }

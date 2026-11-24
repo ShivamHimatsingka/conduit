@@ -66,6 +66,18 @@ public final class ConduitLink: @unchecked Sendable {
         conduit_disconnect(&connection)
     }
 
+    /// Identity of the driver instance this link is mapped to (0 if the driver predates the field).
+    public var instanceID: UInt64 { conduit_instance_id(shared) }
+
+    /// Cheap probe used to detect a restarted driver: connects, reads the instance id, disconnects.
+    /// Returns nil if the driver cannot be reached.
+    public static func probeInstanceID(service: String = ConduitLink.defaultService) -> UInt64? {
+        var c = ConduitConnection()
+        guard conduit_connect(service, &c) == 0, let s = c.shared else { return nil }
+        defer { conduit_disconnect(&c) }
+        return conduit_instance_id(s)
+    }
+
     // MARK: Units
     public static func dbToLinear(_ db: Float) -> Float { db <= -120 ? 0 : powf(10, db / 20) }
     public static func linearToDB(_ x: Float) -> Float { x <= 1e-6 ? -120 : 20 * log10f(x) }

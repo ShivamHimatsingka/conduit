@@ -29,6 +29,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MixerHost {
         popover.contentViewController = vc
         popover.behavior = .applicationDefined   // we close it ourselves so Save/Open dialogs do not dismiss it
         popover.animates = true
+
+        // First launch (or after an update): offer to install the bundled audio driver, once per bundled version.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in self?.offerDriverInstallIfNeeded() }
+    }
+
+    private func offerDriverInstallIfNeeded() {
+        let status = DriverInstaller.status()
+        guard status.needsAction, let bundled = DriverInstaller.bundledURL else { return }
+        let key = "driverOfferDeclined-\(DriverInstaller.version(of: bundled) ?? "?")"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        var updating = false
+        if case .outdated = status { updating = true }
+        NSApp.activate()
+        let alert = NSAlert()
+        alert.messageText = updating ? "Update the Conduit audio driver?" : "Install the Conduit audio driver?"
+        alert.informativeText = "Conduit’s virtual audio device (“Conduit 16ch”) is a small driver that lives in /Library/Audio/Plug-Ins/HAL. macOS will ask for your administrator password and restart Core Audio, so audio pauses for a moment.\n\nWithout it Conduit can still show meters, but it cannot route audio into other apps."
+        alert.addButton(withTitle: updating ? "Update Driver" : "Install Driver")
+        alert.addButton(withTitle: "Not Now")
+        beginModal(); let choice = alert.runModal(); endModal()
+        if choice == .alertFirstButtonReturn { installDriver() } else { UserDefaults.standard.set(true, forKey: key) }
     }
 
     func applicationWillTerminate(_ notification: Notification) { model.shutdown() }
@@ -62,6 +82,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MixerHost {
         let menu = NSMenu()
         menu.addItem(withTitle: "Show Floating Mixer", action: #selector(detachMixerAction), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Reconnect to Driver", action: #selector(reconnect), keyEquivalent: "").target = self
+        switch DriverInstaller.status() {
+        case .notInstalled: menu.addItem(withTitle: "Install Audio Driver…", action: #selector(installDriverAction), keyEquivalent: "").target = self
+        case .outdated: menu.addItem(withTitle: "Update Audio Driver…", action: #selector(installDriverAction), keyEquivalent: "").target = self
+        case .upToDate: menu.addItem(withTitle: "Uninstall Audio Driver…", action: #selector(uninstallDriverAction), keyEquivalent: "").target = self
+        case .notBundled: break
+        }
         menu.addItem(withTitle: "Show Presets in Finder", action: #selector(revealPresets), keyEquivalent: "").target = self
         let login = menu.addItem(withTitle: "Launch at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
         login.target = self
@@ -75,6 +101,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MixerHost {
 
     @objc private func detachMixerAction() { detachMixer() }
     @objc private func reconnect() { model.reconnect() }
+    @objc private func installDriverAction() { installDriver() }
+
+    @objc private func uninstallDriverAction() {
+        let confirm = NSAlert()
+        confirm.messageText = "Remove the Conduit audio driver?"
+        confirm.informativeText = "“Conduit 16ch” disappears from your audio devices and apps routed through it fall back to their default device. macOS will ask for your administrator password and restart Core Audio."
+        confirm.addButton(withTitle: "Remove Driver"); confirm.addButton(withTitle: "Cancel")
+        NSApp.activate(); beginModal(); let choice = confirm.runModal(); endModal()
+        guard choice == .alertFirstButtonReturn else { return }
+        Task { @MainActor in await self.runDriverChange(uninstall: true) }
+    }
 
     /// Registers the app as a login item (macOS 13+ API; only works from an installed .app bundle).
     @objc private func toggleLaunchAtLogin() {
@@ -114,6 +151,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MixerHost {
         p.makeKeyAndOrderFront(nil)
         NSApp.activate()
     }
+    func installDriver() { Task { @MainActor in await runDriverChange(uninstall: false) } }
+
+    /// Runs the admin-prompted install/uninstall, then reconnects once Core Audio has restarted.
+    private func runDriverChange(uninstall: Bool) async {
+        closePopover()
+        beginModal(); defer { endModal() }
+        do {
+            if uninstall { try await DriverInstaller.uninstall() } else { try await DriverInstaller.install() }
+            try? await Task.sleep(for: .seconds(2.5))   // coreaudiod restarts and the driver registers its Mach service
+            model.driverChanged()
+            try? await Task.sleep(for: .seconds(2))
+            model.refreshSources()
+            let done = NSAlert()
+            done.messageText = uninstall ? "Audio driver removed" : "Audio driver installed"
+            done.informativeText = uninstall ? "“Conduit 16ch” is no longer available."
+                : "“Conduit 16ch” is now available. Choose it as the input device in OBS, Zoom or your DAW, then route apps to it from Conduit’s menu-bar mixer."
+            NSApp.activate(); done.runModal()
+        } catch DriverInstaller.Failure.cancelled {
+            // The user dismissed the password prompt: nothing changed, nothing to report.
+        } catch {
+            let a = NSAlert(error: error); a.messageText = uninstall ? "Could not remove the driver" : "Could not install the driver"
+            NSApp.activate(); a.runModal()
+        }
+    }
+
     func beginModal() { modalDepth += 1 }
     func endModal() { modalDepth = max(0, modalDepth - 1) }
 }

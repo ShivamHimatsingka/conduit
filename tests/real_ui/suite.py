@@ -174,9 +174,13 @@ def group_controls():
     print("\n[controls, with real mouse events]")
     app = fresh(); app.focus()
     app.key(46, "cmd", "ctrl", "opt"); time.sleep(1.2)
+    app.wait(lambda st: "window.row0.toggle" in st["controls"], timeout=8); time.sleep(1.0)
     rows = [k for k in app.state()["controls"] if k.startswith("window.row")]
     check(any(k.endswith(".toggle") for k in rows), "the source rows are on screen")
-    app.click("window.row0.toggle"); time.sleep(1.0)
+    app.click("window.row0.toggle")
+    for _ in range(40):
+        if (app.saved() or {}).get("sources"): break
+        time.sleep(0.25)
     s = app.saved(); src = next(iter(s["sources"]), None) if s else None
     check(bool(src) and s["sources"][src]["enabled"], "clicking a row's switch enables the source (saved to disk)", str(s))
     app.click("window.cell.0.2"); time.sleep(1.0)
@@ -196,6 +200,9 @@ def group_controls():
     check(app.saved()["buses"][1]["gainDB"] < -1, "dragging a bus fader lowers the bus", str(app.saved()["buses"][1]))
     app.click("window.bus2.mute"); time.sleep(1.0)
     check(app.saved()["buses"][2]["mute"] is True, "the bus mute button mutes the bus")
+    app.click("window.spectrumPopup"); time.sleep(0.8)
+    check(any(w["class"] == "NSPopupMenuWindow" and w["visible"] for w in app.state()["windows"]), "the spectrum picker opens when clicked (nothing covers it)")
+    app.key(53); time.sleep(0.4)
     app.quit()
 
 
@@ -203,6 +210,7 @@ def group_restore():
     print("\n[last settings come back]")
     app = fresh(); app.focus()
     app.key(46, "cmd", "ctrl", "opt"); time.sleep(1.2)
+    app.wait(lambda st: "window.row0.toggle" in st["controls"], timeout=8); time.sleep(1.0)
     app.click("window.row0.toggle"); app.click("window.cell.0.4"); time.sleep(1.0)
     saved = app.saved(); src = next(iter(saved["sources"]))
     app.key(12, "cmd"); time.sleep(1.5)                                                   # ⌘Q
@@ -227,6 +235,7 @@ def group_presets():
     print("\n[presets and dialogs]")
     app = fresh(); app.focus()
     app.key(46, "cmd", "ctrl", "opt"); time.sleep(1.2)
+    app.wait(lambda st: "window.row0.toggle" in st["controls"], timeout=8); time.sleep(1.0)
     app.click("window.row0.toggle"); time.sleep(0.6)
     app.key(1, "cmd"); time.sleep(1.0)                                                     # ⌘S → Save dialog
     alert = [w for w in app.state()["windows"] if w["visible"] and ("Alert" in w["class"] or "Panel" in w["class"])]

@@ -559,6 +559,8 @@ final class BusStripsView: NSView {
     var meters: [LevelBarView] = [], faders: [FaderView] = [], mutes: [IconButton] = []
     var cellW: CGFloat = Layout.defaultCellW { didSet { if cellW != oldValue { needsLayout = true } } }
     override var isFlipped: Bool { true }
+    /// This view spans the whole width, over the spectrum picker beside it; only its own controls may take clicks.
+    override func hitTest(_ point: NSPoint) -> NSView? { let v = super.hitTest(point); return v === self ? nil : v }
 
     init(model: MixerModel) { self.model = model; super.init(frame: .zero) }
     required init?(coder: NSCoder) { fatalError() }

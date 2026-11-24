@@ -9,7 +9,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-VERSION="${VERSION:-0.0.3}"
+VERSION="${VERSION:-0.0.4}"
 APP_BUNDLE_ID="${APP_BUNDLE_ID:-com.conduit.app}"
 SIGN_IDENTITY="${SIGN_IDENTITY:--}"
 APP="build/Conduit.app"

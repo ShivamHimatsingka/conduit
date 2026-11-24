@@ -16,7 +16,7 @@ MANUFACTURER  ?= Conduit Audio
 BUNDLE_ID     ?= com.conduit.driver
 MACH_SERVICE  ?= $(BUNDLE_ID).ipc
 DRIVER_NAME   ?= Conduit
-VERSION       ?= 0.0.3
+VERSION       ?= 0.0.4
 FACTORY_UUID  ?= DFC5549D-39B8-42EF-8A6A-A2496570C2BB
 # "-" = ad-hoc. For distribution: SIGN_IDENTITY="Developer ID Application: ..." SIGN_FLAGS="--timestamp --options runtime"
 # (scripts/build_release.sh does this). The driver needs no entitlements.

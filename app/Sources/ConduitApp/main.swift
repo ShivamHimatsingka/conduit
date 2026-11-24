@@ -17,6 +17,7 @@ if let i = arguments.firstIndex(of: "--uitest") {
 if arguments.contains("--restoretest") { exit(LiveTest.runRestoreTest() ? 0 : 1) }
 if arguments.contains("--staletest") { exit(LiveTest.runStaleTest() ? 0 : 1) }
 if arguments.contains("--livetest") { exit(LiveTest.run() ? 0 : 1) }
+if arguments.contains("--timing") { SelfTest.timing(); exit(0) }
 if arguments.contains("--selftest") { exit(SelfTest.run() ? 0 : 1) }
 
 if arguments.contains("--driver-status") { print(DriverInstaller.status()); exit(0) }

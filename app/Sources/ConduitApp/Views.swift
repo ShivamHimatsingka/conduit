@@ -405,6 +405,10 @@ final class MixerGridView: NSView {
     init(model: MixerModel) { self.model = model; super.init(frame: .zero) }
     required init?(coder: NSCoder) { fatalError() }
 
+    func rowView(at index: Int) -> SourceRowView? { order.indices.contains(index) ? rowViews[order[index]] : nil }
+    /// Screen-testing helper: the rect of one crosspoint slot, in this view's coordinates.
+    func cellView(row: Int, col: Int) -> (NSView, NSRect)? { order.indices.contains(row) && col < model.pairCount ? (self, slot(row: row, col: col)) : nil }
+
     var contentHeight: CGFloat { CGFloat(max(order.count, 1)) * Layout.rowH }
 
     func reload() {

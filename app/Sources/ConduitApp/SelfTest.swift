@@ -13,6 +13,25 @@ enum SelfTest {
     }
     private static func near(_ a: Float, _ b: Float, _ tol: Float) -> Bool { abs(a - b) <= tol }
 
+    /// `Conduit --timing`: how long the main thread is blocked by the work done each time the mixer appears.
+    static func timing() {
+        func ms(_ label: String, _ body: () -> Void) {
+            let t = DispatchTime.now().uptimeNanoseconds; body()
+            print(String(format: "  %-44@ %7.1f ms", label as NSString, Double(DispatchTime.now().uptimeNanoseconds - t) / 1e6))
+        }
+        let m = MixerModel(); m.persistsState = false
+        ms("model.start() (first refresh included)") { m.start() }
+        for i in 1...3 { ms("refreshSources() #\(i)") { m.refreshSources() } }
+        ms("ProcessDiscovery.apps()") { _ = ProcessDiscovery.apps() }
+        ms("DeviceDiscovery.inputDevices()") { _ = DeviceDiscovery.inputDevices() }
+        ms("DriverInstaller.status() (hash both drivers)") { _ = DriverInstaller.status() }
+        ms("ConduitLink.probeInstanceID()") { _ = ConduitLink.probeInstanceID() }
+        let d = AppDelegate()
+        ms("AppDelegate.makeAppMenu() #1") { _ = d.makeAppMenu() }
+        ms("AppDelegate.makeAppMenu() #2") { _ = d.makeAppMenu() }
+        m.shutdown(persist: false)
+    }
+
     static func run() -> Bool {
         print("metering math (vDSP)")
         let db = MeterMath.dBFS([1, 0.5, 0.1, 0, 2])

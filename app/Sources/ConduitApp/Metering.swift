@@ -46,12 +46,14 @@ struct LevelState: Equatable {
     var holdAge: Float = 0
 
     static let fallDBPerSecond: Float = 42
-    static let holdSeconds: Float = 1.3
+    /// Set from Settings. (Only touched on the main thread.)
+    nonisolated(unsafe) static var holdSeconds: Float = 1.3
 
     mutating func update(peakDB newPeak: Float, rmsDB newRMS: Float, dt: Float) {
         let fall = Self.fallDBPerSecond * dt
         peakDB = max(newPeak, peakDB - fall)
         rmsDB = max(newRMS, rmsDB - fall)
+        if Self.holdSeconds <= 0 { holdDB = newPeak; holdAge = 0; return }                // peak hold off
         if newPeak >= holdDB { holdDB = newPeak; holdAge = 0 }
         else {
             holdAge += dt

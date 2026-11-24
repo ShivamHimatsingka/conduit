@@ -64,7 +64,7 @@ macOS will ask for **Audio Capture** permission the first time you capture an ap
 * **Easy on screen space, easy on the eyes**: normal-size text and controls, with only the routing matrix squeezed (22-point crosspoint columns, small dots, stacked channel labels). Five sources fit in 530 × 330 points; the popover sizes itself to your sources, and the window stretches with you.
 * **Remembers everything**: routing, levels, mutes, bus settings, the spectrum choice and whether the window was open are restored on launch, and your bus levels are re-applied to the driver. Saved to disk within a moment of every change, so even a crash loses nothing.
 * **Presets** saved as plain JSON for switching between setups.
-* **Native menu-bar app** that opens as a **normal macOS window** when you want one (Dock icon, full menu bar, full-screen capable, optional keep-on-top), dark and light mode, launch at login.
+* **Native menu-bar app** that opens as a **normal macOS window** when you want one (Dock icon, full menu bar, full-screen capable, optional keep-on-top), dark by default (light or follow-system in Settings), launch at login.
 * **Scriptable**: `conduitctl` for control and `conduit-bench` for latency and clock measurements.
 * **Real-time safe by construction**: the driver's audio path and the capture callback do no allocation, locking, logging or Swift/Objective-C runtime calls.
 
@@ -114,6 +114,8 @@ That is exactly two buffers: **the driver adds no latency of its own**. Sample-r
 
 * **Menu-bar icon**: click it for the mixer popover. Right-click it for the same menu as the **⋯** button in the header: *Open Mixer in a Window*, *Reconnect to Driver*, *Install / Update / Uninstall Audio Driver*, *Launch at Login*, *Show Presets in Finder*, *About*, **Quit Conduit**.
 * **Window mode**: *Open Mixer in a Window* (or the window button in the header, or double-clicking Conduit in Finder) gives you a standard resizable window. While it is open, Conduit also appears in the Dock and shows its full menu bar (Conduit, File, Edit, View, Window, Help; ⌘S saves a preset, ⌘Q quits, ⌘⌃F is full screen). Close the window and it goes back to the menu bar. Conduit reopens the window next time if that is how you left it.
+* **Settings** (**⋯ → Settings…**, or ⌘,): appearance (dark by default), Dock icon, keep-on-top, launch behaviour, global shortcut, capture buffer size, peak-hold time, driver install/reconnect and a reset for your routing.
+* **Global shortcut**: ⌃⌥⌘M opens the mixer window from anywhere, handy when a crowded menu bar hides the icon (or enable *Show in the Dock*).
 * **Grid**: rows are sources, columns are buses. Click a cell to route, drag across cells to paint. Bus **1-2** = input channels 1-2 of "Conduit 16ch", bus **3-4** = channels 3-4, and so on. Apps that only read a stereo pair see bus 1-2; DAWs can use all 16 channels.
 * **Per source** (the **⋯** on the row): *Mono*, *Silence on normal output while captured*, *Show spectrum*. Hover a name to see it in full; double-click any fader to reset it to 0 dB.
 * **Playing straight to Conduit**: you can also select "Conduit 16ch" as an app's *output* device; its channels 1-2 then appear on the device's input channels 1-2.
@@ -170,6 +172,7 @@ Requires Xcode or the Command Line Tools (`xcode-select --install`).
 ```bash
 make test-all          # driver harness, ring buffer, capture engine, offline latency/drift, IPC, app self-test (no sudo, no audio hardware)
 make test-live         # end to end against the INSTALLED driver: real app audio, real mouse events on the UI
+make test-realui       # 75 checks driving a separate test copy of the app with real mouse/keyboard events (needs Accessibility permission)
 ```
 
 Layout: `driver/` HAL driver · `shared/` C core · `app/` Swift (bridge library, `Conduit` app, `conduitctl`, `conduit-bench`) · `tests/` · `scripts/` · `distribution/` installer package · `docs/`. Release process: [docs/RELEASING.md](docs/RELEASING.md).

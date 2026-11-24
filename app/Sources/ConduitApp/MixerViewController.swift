@@ -81,6 +81,25 @@ final class MixerViewController: NSViewController, MixerModelObserver, NSMenuDel
         if let m = presets.menu { menuNeedsUpdate(m) }   // so the pull-down shows its title before first opened
         root.onLayout = { [weak self] in self?.layoutAll() }
         view = root
+        if TestHooks.enabled {
+            let p = inWindow ? "window" : "popover", hooks = TestHooks.shared
+            hooks.register("\(p).menuButton") { [weak self] in self?.menuButton }
+            hooks.register("\(p).windowButton") { [weak self] in self?.windowButton }
+            hooks.register("\(p).installButton") { [weak self] in self?.installButton }
+            hooks.register("\(p).presets") { [weak self] in self?.presets }
+            hooks.register("\(p).spectrumPopup") { [weak self] in self?.spectrumPopup }
+            hooks.register("\(p).root") { [weak self] in self?.root }
+            for r in 0..<4 {
+                hooks.register("\(p).row\(r).toggle") { [weak self] in self?.grid.rowView(at: r)?.toggle }
+                hooks.register("\(p).row\(r).mute") { [weak self] in self?.grid.rowView(at: r)?.mute }
+                hooks.register("\(p).row\(r).gain") { [weak self] in self?.grid.rowView(at: r)?.gain }
+                for c in 0..<8 { hooks.register("\(p).cell.\(r).\(c)") { [weak self] in self?.grid.cellView(row: r, col: c) } }
+            }
+            for i in 0..<8 {
+                hooks.register("\(p).bus\(i).mute") { [weak self] in self?.strips.mutes.indices.contains(i) == true ? self?.strips.mutes[i] : nil }
+                hooks.register("\(p).bus\(i).fader") { [weak self] in self?.strips.faders.indices.contains(i) == true ? self?.strips.faders[i] : nil }
+            }
+        }
         modelStructureChanged()
     }
 
@@ -174,9 +193,42 @@ final class MixerViewController: NSViewController, MixerModelObserver, NSMenuDel
     // MARK: Actions
     @objc private func windowTapped() { host?.detachMixer() }
     @objc private func installTapped() { host?.installDriver() }
+    /// Shows the actions menu once the app is *really* frontmost.
+    ///
+    /// The popover is opened from a status-item click, which does not give the app the system's activation, so at that point the app
+    /// believes it is active while another app is still frontmost. The first click inside the popover is what actually activates it,
+    /// and that activation lands right around when this menu opens: a menu that opens a few milliseconds before it is cancelled by it.
+    /// Hence: ask for activation now (we are inside a click on our own window, so it is granted), wait until it is real, then open
+    /// the menu; and if a menu is dismissed with no user action at all, open it once more.
     @objc private func menuTapped(_ sender: NSButton) {
-        host?.makeAppMenu().popUp(positioning: nil, at: NSPoint(x: sender.bounds.width, y: sender.bounds.height + 2), in: sender)
+        guard let host else { return }
+        NSApp.activate()
+        presentActionsMenu(host: host, from: sender, waited: 0, retried: false)
     }
+
+    private func presentActionsMenu(host: MixerHost, from sender: NSButton, waited: Int, retried: Bool) {
+        guard sender.window != nil else { return }
+        let isFront = NSWorkspace.shared.frontmostApplication?.processIdentifier == getpid()
+        if !isFront && waited < 24 {      // up to ~0.6 s; if macOS never grants it, show the menu anyway
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.025) { [weak self, weak sender] in
+                guard let self, let sender else { return }
+                self.presentActionsMenu(host: host, from: sender, waited: waited + 1, retried: retried)
+            }
+            return
+        }
+        let menu = host.makeAppMenu()
+        let watcher = MenuWatcher()
+        watcher.onEarlyDismissal = { [weak self, weak sender] in
+            guard !retried, let self, let sender else { return }
+            TestHooks.shared.note("actions menu was dismissed by itself: opening it again")
+            DispatchQueue.main.async { self.presentActionsMenu(host: host, from: sender, waited: 0, retried: true) }
+        }
+        menu.delegate = watcher
+        menuWatcher = watcher                       // keep alive for the menu's lifetime
+        menu.popUp(positioning: nil, at: NSPoint(x: sender.bounds.width, y: sender.bounds.height + 2), in: sender)
+    }
+    private var menuWatcher: MenuWatcher?
+
     @objc private func spectrumChosen() { model.spectrumSourceID = spectrumPopup.selectedItem?.representedObject as? String }
 
     // Presets menu (rebuilt each time it opens, so it always reflects the folder)
@@ -215,6 +267,8 @@ final class MixerViewController: NSViewController, MixerModelObserver, NSMenuDel
         alert.accessoryView = field
         alert.addButton(withTitle: "Save"); alert.addButton(withTitle: "Cancel")
         alert.window.initialFirstResponder = field
+        alert.layout()
+        alert.window.makeFirstResponder(field)       // NSAlert otherwise focuses the default button, so typing would go nowhere
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         let name = field.stringValue.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty, !name.hasPrefix("_") else { return }
@@ -248,5 +302,22 @@ final class MixerViewController: NSViewController, MixerModelObserver, NSMenuDel
         let a = NSAlert(error: error)
         a.messageText = "Problem \(what)"
         a.runModal()
+    }
+}
+
+
+/// Delegate for a pop-up menu: reports the open/close to the test hooks, and detects a menu that vanished *by itself*
+/// (closed within 0.35 s with no item chosen and no button held, which no human does on purpose).
+@MainActor
+final class MenuWatcher: NSObject, NSMenuDelegate {
+    var onEarlyDismissal: (() -> Void)?
+    private var openedAt = Date()
+    private var chosen = false
+
+    func menuWillOpen(_ menu: NSMenu) { openedAt = Date(); chosen = false; TestHooks.shared.menuWillOpen(menu) }
+    func menu(_ menu: NSMenu, willHighlight item: NSMenuItem?) { if item != nil { chosen = true } }
+    func menuDidClose(_ menu: NSMenu) {
+        TestHooks.shared.menuDidClose(menu)
+        if Date().timeIntervalSince(openedAt) < 0.35 && !chosen && NSEvent.pressedMouseButtons == 0 { onEarlyDismissal?() }
     }
 }

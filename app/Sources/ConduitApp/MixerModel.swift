@@ -267,7 +267,7 @@ final class MixerModel {
     private func reconcile() {
         guard !demo else { return }
         let wanted = wantedSources()
-        let signature = wanted.map(\.signature).joined(separator: ";") + (link == nil ? "|monitor" : "|driver")
+        let signature = wanted.map(\.signature).joined(separator: ";") + (link == nil ? "|monitor" : "|driver") + "|buf\(AppSettings.bufferFrames)"
         if signature == activeSignature, let session {
             // Same source set: push live parameters. Levels ramp inside the real-time engine, no rebuild.
             for (i, w) in wanted.enumerated() {
@@ -292,7 +292,7 @@ final class MixerModel {
         session?.stop(); session = nil; activeIDs = []; activeSignature = ""
         lastError = nil
         guard !wanted.isEmpty else { return }
-        let s = TapSession(link: link)
+        let s = TapSession(link: link, bufferFrames: AppSettings.bufferFrames)
         do {
             try s.start(sources: wanted.map(\.source))
             session = s; activeIDs = wanted.map(\.id); activeSignature = signature
@@ -311,6 +311,19 @@ final class MixerModel {
         guard dt >= 0.012 else { return }
         lastPoll = now
         poll(dt: Float(min(dt, 0.25)))
+    }
+
+    /// A setting that affects capture (buffer size) changed.
+    func settingsChanged() { reconcile() }
+
+    /// Forget all routing and bus settings and delete the saved copy ("Reset saved routing…" in Settings).
+    func resetRouting() {
+        routing = [:]
+        buses = Array(repeating: BusSettings(), count: pairCount)
+        spectrumSourceID = nil
+        pushBuses()
+        try? PresetStore.delete(name: "_last")
+        rebuildRows(); reconcile(); notify()
     }
 
     func shutdown(persist: Bool = true) {

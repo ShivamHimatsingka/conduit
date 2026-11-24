@@ -45,7 +45,7 @@ CXXFLAGS   := -std=c++20 -O3 -Wall -Wextra -Wpedantic -Werror \
 LDFLAGS    := -bundle -lbsm -framework CoreFoundation -framework CoreAudio \
               -mmacosx-version-min=$(MIN_MACOS) $(ARCH_FLAGS)
 
-.PHONY: all build sign verify install uninstall restart-coreaudiod test test-ipc test-tap test-bench test-app test-live test-all app bundle clean help
+.PHONY: all build sign verify install uninstall restart-coreaudiod test test-ipc test-tap test-bench test-app test-live test-realui test-all app bundle clean help
 
 all: build
 
@@ -142,6 +142,13 @@ test-live: app
 	.build/release/Conduit --restoretest
 	.build/release/Conduit --livetest
 	@mkdir -p $(BUILD_DIR)/ui && .build/release/Conduit --uitest $(BUILD_DIR)/ui
+
+# Drives a separate test copy of the app with real mouse and keyboard events (CGEvent), never your installed Conduit.
+# Needs Accessibility permission for the terminal. Keep your hands off the mouse; it refuses to click/type if another app is in front.
+test-realui: app
+	swiftc -O tests/real_ui/realclick.swift -o $(BUILD_DIR)/realclick
+	tests/real_ui/dev_bundle.sh
+	python3 tests/real_ui/suite.py
 
 test-all: test test-tap test-bench test-ipc test-app
 

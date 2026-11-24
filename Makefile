@@ -45,7 +45,7 @@ CXXFLAGS   := -std=c++20 -O3 -g -Wall -Wextra -Wpedantic -Werror \
 LDFLAGS    := -bundle -lbsm -framework CoreFoundation -framework CoreAudio \
               -mmacosx-version-min=$(MIN_MACOS) $(ARCH_FLAGS)
 
-.PHONY: all build sign verify install uninstall restart-coreaudiod test test-ipc test-tap test-bench test-app test-all app bundle clean help
+.PHONY: all build sign verify install uninstall restart-coreaudiod test test-ipc test-tap test-bench test-app test-live test-all app bundle clean help
 
 all: build
 
@@ -137,6 +137,11 @@ test-bench: build
 	    -framework CoreFoundation -framework CoreAudio -o $(BUILD_DIR)/bench_offline
 	$(BUILD_DIR)/bench_offline $(EXECUTABLE)
 
+# End-to-end against the INSTALLED driver and a real playing app (needs `make install` and the Audio Capture permission).
+test-live: app
+	.build/release/Conduit --livetest
+	@mkdir -p $(BUILD_DIR)/ui && .build/release/Conduit --uitest $(BUILD_DIR)/ui
+
 test-all: test test-tap test-bench test-ipc test-app
 
 clean:
@@ -152,6 +157,7 @@ help:
 	@echo "make pkg          installer package (see docs/RELEASING.md)"
 	@echo "make test-tap     tap engine (routing/gain/latency/resync) unit test"
 	@echo "make bundle        build the menu-bar app: build/Conduit.app"
+	@echo "make test-live    end-to-end with the installed driver: real app audio, real mouse events on the UI"
 	@echo "make test-app     app self-test (vDSP metering, FFT calibration, presets, CPU cost)"
 	@echo "make test-ipc     cross-process Mach IPC / shared-memory end-to-end test"
 	@echo "scripts/recover.sh   emergency removal of ALL Conduit drivers"

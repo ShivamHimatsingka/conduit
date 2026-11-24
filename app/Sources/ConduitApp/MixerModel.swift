@@ -44,6 +44,8 @@ final class MixerModel {
 
     var pairCount: Int { buses.count }
     let demo: Bool
+    /// Writes routing to the hidden `_last` preset after changes. Tests turn this off so they never touch the user's state.
+    var persistsState = true
 
     private var observers: [WeakObserver] = []
     private struct WeakObserver { weak var object: MixerModelObserver? }
@@ -66,7 +68,7 @@ final class MixerModel {
     // MARK: Lifecycle
     func start() {
         if demo { loadDemo(); return }
-        if let last = try? PresetStore.load(name: "_last") { adopt(last, reconcileNow: false) }
+        if persistsState, let last = try? PresetStore.load(name: "_last") { adopt(last, reconcileNow: false) }
         refreshSources()
         monitor = ProcessMonitor { [weak self] in Task { @MainActor in self?.refreshSources() } }
         maintenance = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
@@ -187,7 +189,7 @@ final class MixerModel {
         saveTask?.cancel()
         saveTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(400))
-            guard !Task.isCancelled, let self, !self.demo else { return }
+            guard !Task.isCancelled, let self, !self.demo, self.persistsState else { return }
             _ = try? PresetStore.save(self.snapshot(named: "_last"))
         }
     }
@@ -262,9 +264,9 @@ final class MixerModel {
         poll(dt: Float(min(dt, 0.25)))
     }
 
-    func shutdown() {
+    func shutdown(persist: Bool = true) {
         session?.stop(); session = nil
-        if !demo { _ = try? PresetStore.save(snapshot(named: "_last")) }
+        if persist && persistsState && !demo { _ = try? PresetStore.save(snapshot(named: "_last")) }
     }
 
     func poll(dt: Float) {
@@ -275,8 +277,10 @@ final class MixerModel {
         var busPeaks = [Float](repeating: 0, count: pairCount), busRMS = busPeaks
         if let link {
             var ins: [MeterLevel] = [], outs: [MeterLevel] = []
-            link.readMeters(inputs: &ins, buses: &outs)
-            for p in 0..<pairCount {
+            link.readMeters(inputs: &ins, buses: &outs)   // always read: this also clears the max-hold peaks
+            // The driver keeps its last block's RMS when no audio is flowing; only trust meters while its clock runs.
+            let running = link.clock()?.running ?? false
+            for p in 0..<pairCount where running {
                 let a = 2 * p, b = min(2 * p + 1, outs.count - 1)
                 busPeaks[p] = max(outs[a].peak, outs[b].peak)
                 busRMS[p] = max(outs[a].rms, outs[b].rms)

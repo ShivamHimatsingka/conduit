@@ -41,7 +41,7 @@ What gets signed, and how:
 
 ## Build in CI
 
-Pushing a tag `vX.Y.Z` runs `.github/workflows/release.yml` on a clean macOS runner. Required repository secrets:
+Pushing a tag `vX.Y.Z` runs `.github/workflows/release.yml` on a clean macOS runner, **once you set the repository variable `SIGNED_RELEASES` to `true`** (until then the workflow is skipped, so tagging a hand-made pre-release does not fail). Required repository secrets:
 
 | Secret | Value |
 |---|---|

@@ -130,10 +130,12 @@ final class SpectrumView: NSView {
 final class SourceRowView: NSView {
     let id: String
     private unowned let model: MixerModel
-    private let toggle = NSSwitch(), icon = NSImageView(), name = NSTextField(labelWithString: ""), live = CALayer()
+    let toggle = NSSwitch(), icon = NSImageView(), name = NSTextField(labelWithString: ""), live = CALayer()
+    var name_: String { name.stringValue }
     let meter = LevelBarView(vertical: false)
-    private let gain = NSSlider(value: 0, minValue: -30, maxValue: 6, target: nil, action: nil)
-    private let mute = NSButton(title: "M", target: nil, action: nil), more = NSButton()
+    let gain = NSSlider(value: 0, minValue: -30, maxValue: 6, target: nil, action: nil)
+    let mute = NSButton(title: "M", target: nil, action: nil)
+    private let more = NSButton()
     private var isApp = true
 
     override var isFlipped: Bool { true }
@@ -271,7 +273,10 @@ final class MixerGridView: NSView {
                     NSColor.white.withAlphaComponent(routing.enabled && available ? 0.95 : 0.6).setFill()
                     NSBezierPath(ovalIn: CGRect(x: rect.midX - 3.5, y: rect.midY - 3.5, width: 7, height: 7)).fill()
                 } else {
-                    NSColor.quaternaryLabelColor.withAlphaComponent(hover?.row == r && hover?.col == c ? 0.55 : 0.22).setFill(); path.fill()
+                    // labelColor adapts to light/dark; the stroke keeps empty cells visible on the popover's vibrant background.
+                    NSColor.labelColor.withAlphaComponent(hover?.row == r && hover?.col == c ? 0.16 : 0.06).setFill(); path.fill()
+                    NSColor.labelColor.withAlphaComponent(0.18).setStroke()
+                    let outline = NSBezierPath(roundedRect: rect.insetBy(dx: 0.5, dy: 0.5), xRadius: 6, yRadius: 6); outline.lineWidth = 1; outline.stroke()
                 }
             }
         }
@@ -281,6 +286,9 @@ final class MixerGridView: NSView {
                                                                           .paragraphStyle: { let p = NSMutableParagraphStyle(); p.alignment = .center; return p }()])
         }
     }
+
+    // In the floating panel (or a popover that is not yet key) the first click must toggle a cell, not just activate the window.
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     // Click toggles a cell; dragging paints the same state across cells.
     private func hit(_ p: NSPoint) -> (Int, Int)? {
@@ -328,7 +336,7 @@ final class BusLabelsView: NSView {
 @MainActor
 final class BusStripsView: NSView {
     private unowned let model: MixerModel
-    private var meters: [LevelBarView] = [], faders: [NSSlider] = [], mutes: [NSButton] = []
+    var meters: [LevelBarView] = [], faders: [NSSlider] = [], mutes: [NSButton] = []
     override var isFlipped: Bool { true }
 
     init(model: MixerModel) { self.model = model; super.init(frame: .zero) }

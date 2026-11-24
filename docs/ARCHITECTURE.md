@@ -281,3 +281,15 @@ The engine keeps writes contiguous and only re-aligns when its clock disagrees w
 | **Signing, notarization, stapling** | **not run**: needs your Developer ID certificates and notary credentials. The path is written and documented but unexercised. |
 | **Tap capture latency; physical mismatched-rate input; installing from the .pkg; the GitHub workflows** | not measured / not run |
 | Unsigned package payload | contains `._*` AppleDouble entries when built from this environment (protected `com.apple.provenance` attribute on every file created here); the script refuses to ship a *signed* release in that state. Build releases in CI. |
+
+
+### Live application tests (installed driver, real app audio)
+
+`make test-live` runs two end-to-end tests that need the driver installed and the Audio Capture permission; neither writes to the user's saved routing.
+
+| Test | What it drives | Result on the reference Mac |
+|---|---|---|
+| `Conduit --livetest` | The real model and capture session with `afplay` playing a 0.5 / 0.25 stereo tone: source discovery, routing to a bus, source gain, mute, bus fader (driver side), bus mute, one source to two buses, removing routes, spectrum band placement, preset apply, teardown | 21/21 pass |
+| `Conduit --uitest` | The real views, driven by genuine `NSEvent` mouse events through `NSWindow.sendEvent`: the row switch, click-to-route, drag-painting and drag-erasing across matrix cells, source and bus faders, mute buttons, the spectrum picker; then renders light and dark screenshots of the live UI | 18/18 pass |
+
+These found and fixed three real defects that the hardware-free suites could not: (1) driver meters keep their last RMS value when no audio is flowing, so a stale level was drawn on an idle bus (the app now ignores driver meters while the device clock is stopped); (2) empty matrix cells were nearly invisible in light mode over the popover's vibrant background; (3) the first click on the matrix was swallowed when the floating panel was not the key window.

@@ -27,10 +27,10 @@ final class MixerViewController: NSViewController, MixerModelObserver, NSMenuDel
     private let presets = NSPopUpButton(frame: .zero, pullsDown: true)
     private let detach = NSButton()
     private let labels = BusLabelsView()
-    private let scroll = NSScrollView()
-    private let grid: MixerGridView
-    private let strips: BusStripsView
-    private let spectrumPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    let scroll = NSScrollView()
+    let grid: MixerGridView
+    let strips: BusStripsView
+    let spectrumPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let spectrum = SpectrumView(bands: 32)
     private let spectrumTitle = NSTextField(labelWithString: "SPECTRUM")
     private let busTitle = NSTextField(labelWithString: "OUTPUT BUSES  (meter · level · mute)")

@@ -1,10 +1,14 @@
 name: Release
+# Signed + notarized releases. Runs only when the repository variable SIGNED_RELEASES is "true" (Settings > Secrets and
+# variables > Actions > Variables), i.e. once the Developer ID secrets below exist. Until then, releases are made by hand.
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
 
 jobs:
   release:
+    if: ${{ vars.SIGNED_RELEASES == 'true' }}
     runs-on: macos-15
     permissions:
       contents: write

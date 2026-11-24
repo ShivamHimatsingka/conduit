@@ -35,6 +35,9 @@ int conduit_connect(const char* service, ConduitConnection* out) {
     if (kr != KERN_SUCCESS) return kr;
 
     ConduitHelloReply* rep = &rx.rep;
+    /* A server that discards our request destroys the send-once reply right; the kernel then delivers a send-once
+       notification (id 71) instead of a reply. That is a refusal, not a protocol error. */
+    if (rep->head.msgh_id == MACH_NOTIFY_SEND_ONCE) return CONDUIT_ERR_REFUSED;
     if (rep->head.msgh_id != CONDUIT_MACH_MSG_HELLO_REPLY || !(rep->head.msgh_bits & MACH_MSGH_BITS_COMPLEX) ||
         rep->body.msgh_descriptor_count != 1 || rep->region.type != MACH_MSG_PORT_DESCRIPTOR || rep->magic != CONDUIT_SHARED_MAGIC) {
         mach_msg_destroy(&rep->head);

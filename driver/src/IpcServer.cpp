@@ -33,9 +33,6 @@ bool IpcServer::start(const char* serviceName, mach_port_t regionEntry, std::uin
     }
     if (kr != KERN_SUCCESS || service_ == MACH_PORT_NULL) return false;
 
-    struct stat st{};
-    consoleUid_ = ::stat("/dev/console", &st) == 0 ? st.st_uid : 0;
-
     pthread_attr_t attr;
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
@@ -51,8 +48,12 @@ void* IpcServer::threadMain(void* self) noexcept {
     return nullptr;
 }
 
-// Only root, the logged-in console user, or our own uid may map the region.
-bool IpcServer::authorised(std::uint32_t euid) const noexcept { return euid == 0 || euid == consoleUid_ || euid == ::geteuid(); }
+bool IpcServer::authorised(std::uint32_t euid) noexcept {
+    struct stat st{};
+    // If the console cannot be inspected, nobody but root/self is let in (0 never matches a real user's euid here).
+    const std::uint32_t console = ::stat("/dev/console", &st) == 0 ? st.st_uid : 0;
+    return isAuthorised(euid, ::geteuid(), console);
+}
 
 void IpcServer::run() noexcept {
     struct {

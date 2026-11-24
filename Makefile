@@ -16,7 +16,7 @@ MANUFACTURER  ?= Conduit Audio
 BUNDLE_ID     ?= com.conduit.driver
 MACH_SERVICE  ?= $(BUNDLE_ID).ipc
 DRIVER_NAME   ?= Conduit
-VERSION       ?= 0.0.2
+VERSION       ?= 0.0.3
 FACTORY_UUID  ?= DFC5549D-39B8-42EF-8A6A-A2496570C2BB
 # "-" = ad-hoc. For distribution: SIGN_IDENTITY="Developer ID Application: ..." SIGN_FLAGS="--timestamp --options runtime"
 # (scripts/build_release.sh does this). The driver needs no entitlements.
@@ -101,7 +101,7 @@ test: build
 	clang++ -std=c++20 -O2 -g -Wall -Wextra -pthread -Idriver/src -Ishared/include tests/ring_test.cpp -o $(BUILD_DIR)/ring_test
 	$(BUILD_DIR)/ring_test
 	clang++ -std=c++20 -O2 -g -Wall -Wextra -framework CoreFoundation -framework CoreAudio \
-	    -Ishared/include -DCONDUIT_CHANNELS=$(CHANNELS) tests/driver_harness.cpp -o $(BUILD_DIR)/driver_harness
+	    -Ishared/include -Idriver/src -DCONDUIT_CHANNELS=$(CHANNELS) tests/driver_harness.cpp -o $(BUILD_DIR)/driver_harness
 	$(BUILD_DIR)/driver_harness $(EXECUTABLE)
 
 app:
@@ -139,6 +139,7 @@ test-bench: build
 
 # End-to-end against the INSTALLED driver and a real playing app (needs `make install` and the Audio Capture permission).
 test-live: app
+	.build/release/Conduit --restoretest
 	.build/release/Conduit --livetest
 	@mkdir -p $(BUILD_DIR)/ui && .build/release/Conduit --uitest $(BUILD_DIR)/ui
 

@@ -32,12 +32,22 @@ final class MixerModel {
     private(set) var buses: [BusSettings] = Array(repeating: BusSettings(), count: 8)
     private(set) var rows: [Row] = []
     private(set) var statusText = "Looking for the Conduit driver…"
+    /// One short line for the header (the full sentence is the tooltip).
+    private(set) var statusShort = "Looking for driver…"
+    /// The driver is there but dropped our connection (an old driver after a reboot): reinstalling fixes it.
+    private(set) var connectRefused = false
     private(set) var driverConnected = false
     private(set) var driverStatus: DriverInstaller.Status = .notBundled
     private var refreshCount = 0
     private(set) var lastError: String?
     private(set) var hint: String?
-    var spectrumSourceID: String? { didSet { spectrum.reset(); notify() } }
+    var spectrumSourceID: String? {
+        didSet {
+            spectrum.reset()
+            if persistsState && !demo { UserDefaults.standard.set(spectrumSourceID, forKey: "spectrumSource") }
+            notify()
+        }
+    }
 
     // Levels (updated by poll, read by views every frame)
     private(set) var sourceLevels: [String: LevelState] = [:]
@@ -70,7 +80,10 @@ final class MixerModel {
     // MARK: Lifecycle
     func start() {
         if demo { loadDemo(); return }
-        if persistsState, let last = try? PresetStore.load(name: "_last") { adopt(last, reconcileNow: false) }
+        if persistsState {
+            if let last = try? PresetStore.load(name: "_last") { adopt(last, reconcileNow: false) }
+            if let saved = UserDefaults.standard.string(forKey: "spectrumSource") { spectrumSourceID = saved }
+        }
         refreshSources()
         driverStatus = DriverInstaller.status()
         monitor = ProcessMonitor { [weak self] in Task { @MainActor in self?.refreshSources() } }
@@ -92,12 +105,16 @@ final class MixerModel {
 
     private func connectIfNeeded() {
         guard link == nil else { return }
-        if let l = try? ConduitLink() {
+        do {
+            let l = try ConduitLink()
             link = l
+            connectRefused = false
             let pairs = max(1, l.channels / 2)
             if buses.count != pairs { buses = Array(repeating: BusSettings(), count: pairs); busLevels = Array(repeating: LevelState(), count: pairs) }
-            pushBuses()
-        }
+            pushBuses()   // the driver starts with unity gains; re-apply what the user had
+        } catch let e as ConduitError {
+            connectRefused = e.code == 1004
+        } catch {}
     }
 
     // MARK: Source discovery
@@ -113,12 +130,18 @@ final class MixerModel {
         if driverConnected {
             let rate = link?.clock().map { Int($0.sampleRate) } ?? 48000
             statusText = "Conduit driver connected · \(link?.channels ?? 0) ch · \(rate / 1000).\((rate % 1000) / 100) kHz"
-            if case .outdated = driverStatus { statusText += " · update available" }
+            statusShort = "\(link?.channels ?? 0) ch · \(rate / 1000).\((rate % 1000) / 100) kHz"
+            if case .outdated = driverStatus { statusText += " · update available"; statusShort += " · update" }
         } else {
-            switch driverStatus {
-            case .notInstalled: statusText = "Audio driver not installed · capture is meter-only"
-            case .outdated: statusText = "Audio driver needs updating · capture is meter-only"
-            default: statusText = "Driver not found · capture is meter-only"
+            if connectRefused {
+                statusText = "The audio driver refused the connection (an older driver rejects your user after a reboot). Reinstall it to fix this · capture is meter-only"
+                statusShort = "Driver refused connection"
+            } else {
+                switch driverStatus {
+                case .notInstalled: statusText = "Audio driver not installed · capture is meter-only"; statusShort = "Driver not installed"
+                case .outdated: statusText = "Audio driver needs updating · capture is meter-only"; statusShort = "Driver needs update"
+                default: statusText = "Driver not found · capture is meter-only"; statusShort = "Driver not found"
+                }
             }
         }
         rebuildRows()
@@ -291,6 +314,7 @@ final class MixerModel {
     }
 
     func shutdown(persist: Bool = true) {
+        saveTask?.cancel()   // the final state is written below; a late debounced write must never overwrite it
         session?.stop(); session = nil
         if persist && persistsState && !demo { _ = try? PresetStore.save(snapshot(named: "_last")) }
     }
@@ -366,6 +390,7 @@ final class MixerModel {
         buses[5].mute = true
         driverConnected = true
         statusText = "Conduit driver connected · 16 ch · 48.0 kHz (demo data)"
+        statusShort = "16 ch · 48.0 kHz · demo"
         rebuildRows()
         spectrumSourceID = "app:com.spotify.client"
     }

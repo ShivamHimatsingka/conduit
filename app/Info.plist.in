@@ -8,6 +8,8 @@
 	<string>Conduit</string>
 	<key>CFBundleIdentifier</key>
 	<string>@APP_BUNDLE_ID@</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>

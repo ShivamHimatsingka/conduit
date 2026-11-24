@@ -4,12 +4,24 @@ import AppKit
 import ConduitBridge
 
 enum Layout {
-    static let pad: CGFloat = 12
-    static let leftWidth: CGFloat = 316
-    static let cellW: CGFloat = 38
-    static let rowH: CGFloat = 36
-    static func width(pairs: Int) -> CGFloat { pad * 2 + leftWidth + cellW * CGFloat(pairs) }
+    static let pad: CGFloat = 8
+    static let leftWidth: CGFloat = 256
+    static let defaultCellW: CGFloat = 28
+    static let rowH: CGFloat = 24
+    static let headerH: CGFloat = 30
+    static let labelsH: CGFloat = 16
+    static let bottomH: CGFloat = 78
+    static let minRows = 2, maxRows = 10
+    static func width(pairs: Int) -> CGFloat { pad * 2 + leftWidth + defaultCellW * CGFloat(pairs) }
     static var matrixX: CGFloat { pad + leftWidth }
+    /// Height that fits `rows` sources without wasted space (more than `maxRows` scroll).
+    static func height(rows: Int, hint: Bool = false) -> CGFloat {
+        headerH + labelsH + CGFloat(min(max(rows, minRows), maxRows)) * rowH + bottomH + (hint ? 30 : 0)
+    }
+    /// Cells stretch to use a wider window, never narrower than the default.
+    static func cellWidth(forWidth w: CGFloat, pairs: Int) -> CGFloat {
+        min(max((w - 2 * pad - leftWidth) / CGFloat(max(pairs, 1)), defaultCellW), 64)
+    }
 }
 
 private func busLabel(_ pair: Int) -> String { "\(2 * pair + 1)-\(2 * pair + 2)" }
@@ -146,16 +158,17 @@ final class SourceRowView: NSView {
         wantsLayer = true
         toggle.controlSize = .mini; toggle.target = self; toggle.action = #selector(toggled)
         icon.imageScaling = .scaleProportionallyUpOrDown
-        name.font = .systemFont(ofSize: 12); name.lineBreakMode = .byTruncatingTail
+        name.font = .systemFont(ofSize: 11); name.lineBreakMode = .byTruncatingTail
         name.addGestureRecognizer(NSClickGestureRecognizer(target: self, action: #selector(selectForSpectrum)))
         gain.controlSize = .mini; gain.target = self; gain.action = #selector(gainChanged); gain.toolTip = "Source level (dB)"
         gain.doubleValue = 0
-        mute.setButtonType(.pushOnPushOff); mute.bezelStyle = .smallSquare; mute.controlSize = .small
-        mute.font = .systemFont(ofSize: 10, weight: .semibold); mute.target = self; mute.action = #selector(muteChanged); mute.toolTip = "Mute"
+        mute.setButtonType(.pushOnPushOff); mute.bezelStyle = .smallSquare; mute.controlSize = .mini
+        mute.font = .systemFont(ofSize: 9, weight: .semibold); mute.target = self; mute.action = #selector(muteChanged); mute.toolTip = "Mute"
         more.bezelStyle = .inline; more.isBordered = false; more.imagePosition = .imageOnly
         more.image = NSImage(systemSymbolName: "ellipsis.circle", accessibilityDescription: "Options"); more.target = self; more.action = #selector(showMore(_:))
-        live.backgroundColor = NSColor.systemGreen.cgColor; live.cornerRadius = 3; live.isHidden = true
+        live.backgroundColor = NSColor.systemGreen.cgColor; live.cornerRadius = 2.5; live.isHidden = true
         layer?.addSublayer(live)
+        more.toolTip = "More options for this source"
         [toggle, icon, name, meter, gain, mute, more].forEach(addSubview)
     }
     required init?(coder: NSCoder) { fatalError() }
@@ -164,6 +177,7 @@ final class SourceRowView: NSView {
         let r = model.routing(for: row.id)
         isApp = { if case .app = row.kind { return true } else { return false } }()
         name.stringValue = row.title
+        name.toolTip = row.title
         name.textColor = row.available ? .labelColor : .tertiaryLabelColor
         toggle.state = r.enabled ? .on : .off
         toggle.isEnabled = row.available
@@ -177,17 +191,17 @@ final class SourceRowView: NSView {
 
     override func layout() {
         super.layout()
-        let h = bounds.height, cy = h / 2
-        toggle.frame = CGRect(x: 0, y: cy - 8, width: 32, height: 16)
-        icon.frame = CGRect(x: 38, y: cy - 9, width: 18, height: 18)
+        let cy = bounds.height / 2
+        toggle.frame = CGRect(x: 0, y: cy - 7.5, width: 28, height: 15)
+        icon.frame = CGRect(x: 32, y: cy - 7, width: 14, height: 14)
         CATransaction.begin(); CATransaction.setDisableActions(true)
-        live.frame = CGRect(x: 60, y: cy - 3, width: 6, height: 6)
+        live.frame = CGRect(x: 49, y: cy - 2.5, width: 5, height: 5)
         CATransaction.commit()
-        name.frame = CGRect(x: 70, y: cy - 8, width: 92, height: 16)
-        meter.frame = CGRect(x: 166, y: cy - 3, width: 44, height: 6)
-        gain.frame = CGRect(x: 214, y: cy - 8, width: 44, height: 16)
-        mute.frame = CGRect(x: 262, y: cy - 10, width: 24, height: 20)
-        more.frame = CGRect(x: 290, y: cy - 10, width: 22, height: 20)
+        name.frame = CGRect(x: 58, y: cy - 7, width: 76, height: 14)
+        meter.frame = CGRect(x: 138, y: cy - 2, width: 28, height: 4)
+        gain.frame = CGRect(x: 170, y: cy - 7, width: 34, height: 14)
+        mute.frame = CGRect(x: 208, y: cy - 8, width: 18, height: 16)
+        more.frame = CGRect(x: 230, y: cy - 8, width: 16, height: 16)
     }
 
     @objc private func toggled() { model.update(id) { $0.enabled = toggle.state == .on } }
@@ -221,6 +235,8 @@ final class MixerGridView: NSView {
     private var hover: (row: Int, col: Int)?
     private var paintTarget = true
     private var tracking: NSTrackingArea?
+    /// Stretches with the window; set by the view controller.
+    var cellW: CGFloat = Layout.defaultCellW { didSet { if cellW != oldValue { needsDisplay = true } } }
 
     override var isFlipped: Bool { true }
 
@@ -238,7 +254,7 @@ final class MixerGridView: NSView {
             v.configure(row)
         }
         order = rows.map(\.id)
-        frame.size = NSSize(width: Layout.width(pairs: model.pairCount), height: contentHeight)
+        frame.size = NSSize(width: max(frame.width, Layout.width(pairs: model.pairCount)), height: contentHeight)
         needsLayout = true
         needsDisplay = true
     }
@@ -255,7 +271,7 @@ final class MixerGridView: NSView {
     }
 
     private func cellRect(row: Int, col: Int) -> CGRect {
-        CGRect(x: Layout.matrixX + CGFloat(col) * Layout.cellW, y: CGFloat(row) * Layout.rowH, width: Layout.cellW, height: Layout.rowH).insetBy(dx: 3, dy: 5)
+        CGRect(x: Layout.matrixX + CGFloat(col) * cellW, y: CGFloat(row) * Layout.rowH, width: cellW, height: Layout.rowH).insetBy(dx: 2, dy: 3)
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -267,16 +283,16 @@ final class MixerGridView: NSView {
             for c in 0..<model.pairCount {
                 let rect = cellRect(row: r, col: c)
                 let on = routing.pairs.contains(c)
-                let path = NSBezierPath(roundedRect: rect, xRadius: 6, yRadius: 6)
+                let path = NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4)
                 if on {
                     accent.withAlphaComponent(routing.enabled && available ? 1 : 0.35).setFill(); path.fill()
                     NSColor.white.withAlphaComponent(routing.enabled && available ? 0.95 : 0.6).setFill()
-                    NSBezierPath(ovalIn: CGRect(x: rect.midX - 3.5, y: rect.midY - 3.5, width: 7, height: 7)).fill()
+                    NSBezierPath(ovalIn: CGRect(x: rect.midX - 2.5, y: rect.midY - 2.5, width: 5, height: 5)).fill()
                 } else {
                     // labelColor adapts to light/dark; the stroke keeps empty cells visible on the popover's vibrant background.
                     NSColor.labelColor.withAlphaComponent(hover?.row == r && hover?.col == c ? 0.16 : 0.06).setFill(); path.fill()
                     NSColor.labelColor.withAlphaComponent(0.18).setStroke()
-                    let outline = NSBezierPath(roundedRect: rect.insetBy(dx: 0.5, dy: 0.5), xRadius: 6, yRadius: 6); outline.lineWidth = 1; outline.stroke()
+                    let outline = NSBezierPath(roundedRect: rect.insetBy(dx: 0.5, dy: 0.5), xRadius: 4, yRadius: 4); outline.lineWidth = 1; outline.stroke()
                 }
             }
         }
@@ -292,7 +308,7 @@ final class MixerGridView: NSView {
 
     // Click toggles a cell; dragging paints the same state across cells.
     private func hit(_ p: NSPoint) -> (Int, Int)? {
-        let col = Int((p.x - Layout.matrixX) / Layout.cellW), row = Int(p.y / Layout.rowH)
+        let col = Int((p.x - Layout.matrixX) / cellW), row = Int(p.y / Layout.rowH)
         guard p.x >= Layout.matrixX, col >= 0, col < model.pairCount, row >= 0, row < order.count else { return nil }
         return (row, col)
     }
@@ -322,13 +338,14 @@ final class MixerGridView: NSView {
 
 final class BusLabelsView: NSView {
     var pairs = 8 { didSet { needsDisplay = true } }
+    var cellW: CGFloat = Layout.defaultCellW { didSet { if cellW != oldValue { needsDisplay = true } } }
     override var isFlipped: Bool { true }
     override func draw(_ dirtyRect: NSRect) {
-        let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .medium), .foregroundColor: NSColor.secondaryLabelColor]
-        ("SOURCES" as NSString).draw(at: NSPoint(x: Layout.pad, y: 6), withAttributes: [.font: NSFont.systemFont(ofSize: 9, weight: .semibold), .foregroundColor: NSColor.tertiaryLabelColor])
+        let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.monospacedDigitSystemFont(ofSize: 8, weight: .medium), .foregroundColor: NSColor.secondaryLabelColor]
+        ("SOURCES" as NSString).draw(at: NSPoint(x: Layout.pad, y: 3), withAttributes: [.font: NSFont.systemFont(ofSize: 8, weight: .semibold), .foregroundColor: NSColor.tertiaryLabelColor])
         for p in 0..<pairs {
             let s = busLabel(p) as NSString, size = s.size(withAttributes: attrs)
-            s.draw(at: NSPoint(x: Layout.matrixX + CGFloat(p) * Layout.cellW + (Layout.cellW - size.width) / 2, y: 5), withAttributes: attrs)
+            s.draw(at: NSPoint(x: Layout.matrixX + CGFloat(p) * cellW + (cellW - size.width) / 2, y: 2), withAttributes: attrs)
         }
     }
 }
@@ -337,6 +354,7 @@ final class BusLabelsView: NSView {
 final class BusStripsView: NSView {
     private unowned let model: MixerModel
     var meters: [LevelBarView] = [], faders: [NSSlider] = [], mutes: [NSButton] = []
+    var cellW: CGFloat = Layout.defaultCellW { didSet { if cellW != oldValue { needsLayout = true } } }
     override var isFlipped: Bool { true }
 
     init(model: MixerModel) { self.model = model; super.init(frame: .zero) }
@@ -353,8 +371,8 @@ final class BusStripsView: NSView {
             }
             mutes = (0..<n).map { i in
                 let b = NSButton(title: "M", target: self, action: #selector(muteChanged(_:)))
-                b.setButtonType(.pushOnPushOff); b.bezelStyle = .smallSquare; b.controlSize = .small
-                b.font = .systemFont(ofSize: 10, weight: .semibold); b.tag = i; b.toolTip = "Mute bus \(busLabel(i))"; return b
+                b.setButtonType(.pushOnPushOff); b.bezelStyle = .smallSquare; b.controlSize = .mini
+                b.font = .systemFont(ofSize: 9, weight: .semibold); b.tag = i; b.toolTip = "Mute bus \(busLabel(i))"; return b
             }
             (meters as [NSView] + faders + mutes).forEach(addSubview)
             needsLayout = true
@@ -370,12 +388,13 @@ final class BusStripsView: NSView {
 
     override func layout() {
         super.layout()
-        let top: CGFloat = 4, mH = bounds.height - 30
+        let top: CGFloat = 2, mH = max(20, bounds.height - 22)
+        let meterW: CGFloat = 6, faderW: CGFloat = 14, gap: CGFloat = 2
         for i in 0..<meters.count {
-            let x = Layout.matrixX + CGFloat(i) * Layout.cellW
-            meters[i].frame = CGRect(x: x + 5, y: top, width: 9, height: mH)
-            faders[i].frame = CGRect(x: x + 17, y: top, width: 16, height: mH)
-            mutes[i].frame = CGRect(x: x + 7, y: top + mH + 5, width: 24, height: 18)
+            let x = Layout.matrixX + CGFloat(i) * cellW + (cellW - (meterW + gap + faderW)) / 2
+            meters[i].frame = CGRect(x: x, y: top, width: meterW, height: mH)
+            faders[i].frame = CGRect(x: x + meterW + gap, y: top, width: faderW, height: mH)
+            mutes[i].frame = CGRect(x: Layout.matrixX + CGFloat(i) * cellW + (cellW - 20) / 2, y: top + mH + 3, width: 20, height: 14)
         }
     }
 

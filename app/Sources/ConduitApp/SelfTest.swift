@@ -106,9 +106,22 @@ enum SelfTest {
             check(DriverInstaller.status(bundled: bundled, installed: try fake("rebuilt", version: "0.0.2", binary: "binary-B")) == .outdated(installed: "0.0.2"), "same version but different binary is outdated")
         } catch { check(false, "driver status fixtures: \(error)") }
 
+        print("menus (a way to quit must always exist)")
+        let delegate = AppDelegate()
+        let actions = delegate.makeAppMenu()
+        let titles = actions.items.map(\.title)
+        check(titles.contains("Quit Conduit"), "the ⋯ / status-item menu has Quit Conduit")
+        check(titles.contains("Open Mixer in a Window") && titles.contains("Reconnect to Driver") && titles.contains("Launch at Login"), "…and window, reconnect and launch-at-login items")
+        let main = delegate.buildMainMenu()
+        check(main.items.map(\.title) == ["Conduit", "File", "Edit", "View", "Window", "Help"], "main menu bar: Conduit, File, Edit, View, Window, Help")
+        let quit = main.items.first?.submenu?.items.first { $0.title == "Quit Conduit" }
+        check(quit?.keyEquivalent == "q" && quit?.keyEquivalentModifierMask == .command, "⌘Q quits")
+        check(main.items.first?.submenu?.items.contains { $0.title == "Hide Conduit" && $0.keyEquivalent == "h" } == true, "⌘H hides")
+        check(Layout.height(rows: 5) < 260 && Layout.width(pairs: 8) < 500, "compact: 5 sources fit in \(Int(Layout.width(pairs: 8)))×\(Int(Layout.height(rows: 5))) pt")
+
         print("per-frame cost (model poll + all meters + FFT every 2nd frame)")
         let vc = MixerViewController(model: m, host: nil)
-        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 644, height: 470), styleMask: [.borderless], backing: .buffered, defer: false)
+        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Layout.width(pairs: 8), height: Layout.height(rows: 5)), styleMask: [.borderless], backing: .buffered, defer: false)
         win.contentViewController = vc; vc.view.layoutSubtreeIfNeeded()
         for _ in 0..<60 { m.poll(dt: 1 / 60); vc.updateMeters() }
         let frames = 1200

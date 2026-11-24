@@ -28,6 +28,8 @@ struct Preset: Codable, Equatable {
 
 enum PresetStore {
     static var directory: URL {
+        // Tests point this at a temporary folder so they never touch the user's presets.
+        if let override = ProcessInfo.processInfo.environment["CONDUIT_PRESET_DIR"], !override.isEmpty { return URL(fileURLWithPath: override, isDirectory: true) }
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         return base.appendingPathComponent("Conduit/Presets", isDirectory: true)
     }

@@ -23,8 +23,9 @@ enum UITest {
                                     windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!
         window.sendEvent(ev)
     }
+    private static var cellW: CGFloat = Layout.defaultCellW
     private static func cellCenter(row: Int, col: Int) -> NSPoint {
-        NSPoint(x: Layout.matrixX + Layout.cellW * (CGFloat(col) + 0.5), y: Layout.rowH * (CGFloat(row) + 0.5))
+        NSPoint(x: Layout.matrixX + cellW * (CGFloat(col) + 0.5), y: Layout.rowH * (CGFloat(row) + 0.5))
     }
     private static func click(_ grid: MixerGridView, row: Int, col: Int, window: NSWindow) {
         mouse(.leftMouseDown, in: grid, at: cellCenter(row: row, col: col), window: window)
@@ -67,7 +68,7 @@ enum UITest {
         }
         guard let id = rowID, let r = model.rows.firstIndex(where: { $0.id == id }) else { print("UI TEST ABORTED: no playing source found"); return false }
 
-        let size = NSSize(width: Layout.width(pairs: model.pairCount), height: 470)
+        let size = NSSize(width: Layout.width(pairs: model.pairCount), height: Layout.height(rows: model.rows.count))
         let vc = MixerViewController(model: model, host: nil)
         // Mouse events are only dispatched to windows that are ordered in; keep it far off-screen (borderless so it is not clamped back).
         let window = NSWindow(contentRect: NSRect(x: -30000, y: -30000, width: size.width, height: size.height), styleMask: [.borderless], backing: .buffered, defer: false)
@@ -77,6 +78,7 @@ enum UITest {
         vc.view.layoutSubtreeIfNeeded()
         vc.modelStructureChanged()
         vc.view.layoutSubtreeIfNeeded()
+        cellW = vc.grid.cellW
         guard let row = vc.grid.subviews.compactMap({ $0 as? SourceRowView }).first(where: { $0.id == id }) else { print("UI TEST ABORTED: row view missing"); return false }
         func peak(_ p: Int) -> Float { model.busLevels[p].peakDB }
 
@@ -92,7 +94,7 @@ enum UITest {
 
         model.spectrumSourceID = id
         pump(model, vc, 1.5)
-        check(vc.spectrumPopup.titleOfSelectedItem == row.name_, "spectrum picker shows the selected source")
+        check(vc.spectrumPopup.titleOfSelectedItem == "Spectrum · \(row.name_)", "spectrum picker shows the selected source")
 
         drag(vc.grid, row: r, from: 2, to: 4, window: window)
         check(model.routing(for: id).pairs == [0, 2, 3, 4], "dragging across cells paints routes 5-6, 7-8, 9-10")

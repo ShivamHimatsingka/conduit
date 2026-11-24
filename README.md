@@ -49,6 +49,8 @@ Typical uses: stream Spotify and your mic into OBS on separate channels, send a 
 4. Click the **slider icon in the menu bar**. Turn on a source (an app that is playing sound, or a microphone) and click a cell in the grid to send it to a bus. **Bus 1-2** is the stereo pair most apps read.
 5. In OBS, Zoom, Discord or your DAW, choose **Conduit 16ch** as the **input** device.
 
+To **quit**, use the **⋯** menu in the mixer header (or right-click the menu-bar icon, or press ⌘Q while the window is open). Conduit remembers your setup and comes back exactly as you left it.
+
 macOS will ask for **Audio Capture** permission the first time you capture an app, and **Microphone** permission for a microphone. Conduit never sends audio anywhere; it has no network code.
 
 ## Features
@@ -59,8 +61,10 @@ macOS will ask for **Audio Capture** permission the first time you capture an ap
 * **Routing matrix** of sources × eight stereo buses (1-2 … 15-16). Click a cell to route, drag across cells to paint. One source can feed several buses.
 * **Mixer controls**: level and mute per source and per bus, mono-fold, and *silence the app on its normal output while it is captured* so you do not hear it twice.
 * **Meters at 60 fps** (peak, RMS, peak-hold) and a **32-band FFT spectrum**, using Accelerate and Core Animation: about 0.2 % of one CPU core while the mixer is open, nothing while it is closed.
-* **Presets** saved as plain JSON, plus automatic restore of your last routing.
-* **Native menu-bar app** with a popover and a detachable floating window, dark and light mode, launch at login.
+* **Compact by design**: five sources fit in 496 × 244 points. The popover sizes itself to your sources, and the window stretches with you; nothing is wasted on empty space.
+* **Remembers everything**: routing, levels, mutes, bus settings, the spectrum choice and whether the window was open are restored on launch, and your bus levels are re-applied to the driver. Saved to disk within a moment of every change, so even a crash loses nothing.
+* **Presets** saved as plain JSON for switching between setups.
+* **Native menu-bar app** that opens as a **normal macOS window** when you want one (Dock icon, full menu bar, full-screen capable, optional keep-on-top), dark and light mode, launch at login.
 * **Scriptable**: `conduitctl` for control and `conduit-bench` for latency and clock measurements.
 * **Real-time safe by construction**: the driver's audio path and the capture callback do no allocation, locking, logging or Swift/Objective-C runtime calls.
 
@@ -108,11 +112,12 @@ That is exactly two buffers: **the driver adds no latency of its own**. Sample-r
 
 ## Using it
 
-* **Menu-bar icon**: left-click opens the mixer. Right-click for *Show Floating Mixer*, *Reconnect to Driver*, *Install / Update / Uninstall Audio Driver*, *Launch at Login* and *Quit*.
-* **Grid**: rows are sources, columns are buses. Bus **1-2** = input channels 1-2 of "Conduit 16ch", bus **3-4** = channels 3-4, and so on. Apps that only read a stereo pair see bus 1-2; DAWs can use all 16 channels.
-* **Per source** (`⋯` menu): *Mono*, *Silence on normal output while captured*, *Show spectrum*.
+* **Menu-bar icon**: click it for the mixer popover. Right-click it for the same menu as the **⋯** button in the header: *Open Mixer in a Window*, *Reconnect to Driver*, *Install / Update / Uninstall Audio Driver*, *Launch at Login*, *Show Presets in Finder*, *About*, **Quit Conduit**.
+* **Window mode**: *Open Mixer in a Window* (or the window button in the header, or double-clicking Conduit in Finder) gives you a standard resizable window. While it is open, Conduit also appears in the Dock and shows its full menu bar (Conduit, File, Edit, View, Window, Help; ⌘S saves a preset, ⌘Q quits, ⌘⌃F is full screen). Close the window and it goes back to the menu bar. Conduit reopens the window next time if that is how you left it.
+* **Grid**: rows are sources, columns are buses. Click a cell to route, drag across cells to paint. Bus **1-2** = input channels 1-2 of "Conduit 16ch", bus **3-4** = channels 3-4, and so on. Apps that only read a stereo pair see bus 1-2; DAWs can use all 16 channels.
+* **Per source** (the **⋯** on the row): *Mono*, *Silence on normal output while captured*, *Show spectrum*. Hover a truncated name to see it in full.
 * **Playing straight to Conduit**: you can also select "Conduit 16ch" as an app's *output* device; its channels 1-2 then appear on the device's input channels 1-2.
-* **Presets** (top right): *Save Current Routing As…*, load, import, delete. They are JSON files in `~/Library/Application Support/Conduit/Presets/`.
+* **Presets** (top right): *Save Current Routing As…*, load, import, delete. They are JSON files in `~/Library/Application Support/Conduit/Presets/`. Your *current* setup is saved automatically and needs no preset.
 
 ### Command-line tools
 
@@ -135,6 +140,7 @@ conduit-bench clocks com.conduit.driver.device.16ch BuiltInSpeakerDevice
 | Symptom | What to do |
 |---|---|
 | "Audio driver not installed" in the mixer | Click **Install Driver…** (or right-click the menu-bar icon → *Install Audio Driver…*). |
+| "Driver refused connection" or "Driver not found" after a **restart** (v0.0.2 and earlier) | Fixed in v0.0.3: install the new app, click **Reinstall / Update Driver…**. The old driver checked who was logged in only once, at startup, which after a reboot is before you log in, so it turned you away for the whole session. |
 | "Driver not found" after installing | Right-click the icon → *Reconnect to Driver*. Check that Audio MIDI Setup lists **Conduit 16ch**. If not, log out and in, or restart. |
 | A captured app shows no level | Allow Conduit in **System Settings → Privacy & Security → Audio Capture**. Start playback first: an app only appears once it has opened an audio stream. |
 | macOS says the app "cannot be opened" | It is not notarized yet. **Privacy & Security → Open Anyway**, or `xattr -dr com.apple.quarantine /Applications/Conduit.app`. |

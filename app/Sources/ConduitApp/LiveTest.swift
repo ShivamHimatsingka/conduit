@@ -58,6 +58,73 @@ enum LiveTest {
         return false
     }
 
+    /// `Conduit --restoretest`: proves the app comes back with its last saved settings. Uses a temporary presets folder, so
+    /// it never touches the user's saved routing. If the driver is installed, also proves the bus settings are re-applied to it.
+    static func runRestoreTest() -> Bool {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("conduit-restore-\(getpid())")
+        setenv("CONDUIT_PRESET_DIR", dir.path, 1)
+        defer { try? FileManager.default.removeItem(at: dir); unsetenv("CONDUIT_PRESET_DIR") }
+        let id = "app:com.example.restore-test"
+        let defaults = UserDefaults.standard, savedSpectrum = defaults.string(forKey: "spectrumSource")
+        defer { defaults.set(savedSpectrum, forKey: "spectrumSource") }
+
+        print("session 1: set things up, then quit")
+        let a = MixerModel()
+        a.start()
+        for _ in 0..<10 { RunLoop.main.run(until: Date().addingTimeInterval(0.1)); a.refreshSources() }
+        let hadDriver = a.driverConnected
+        a.update(id) { $0.enabled = true; $0.gainDB = -7; $0.mute = true; $0.mono = true; $0.silenceOriginal = true; $0.pairs = [1, 4] }
+        a.updateBus(2) { $0.gainDB = -5; $0.mute = true }
+        a.updateBus(5) { $0.gainDB = -9 }
+        a.spectrumSourceID = id
+        a.shutdown()   // what Quit does
+        check(FileManager.default.fileExists(atPath: dir.appendingPathComponent("_last.json").path), "quitting wrote the last-settings file")
+        let wanted = a.routing(for: id), wantedBuses = a.buses
+
+        print("session 2: relaunch")
+        let b = MixerModel()
+        b.start()
+        check(b.routing(for: id) == wanted, "source routing restored: enabled, -7 dB, mute, mono, silence-original, buses 3-4 and 9-10")
+        check(b.buses == wantedBuses && b.buses[2].mute && b.buses[2].gainDB == -5 && b.buses[5].gainDB == -9, "bus levels and mutes restored")
+        check(b.spectrumSourceID == id, "spectrum choice restored")
+        check(b.rows.contains { $0.id == id && !$0.available }, "a saved source that is not running is kept in the list, greyed out")
+        if hadDriver {
+            for _ in 0..<20 where !b.driverConnected { RunLoop.main.run(until: Date().addingTimeInterval(0.1)); b.refreshSources() }
+            check(b.driverConnected, "reconnected to the driver")
+            if let l = b.link {
+                check(abs(l.busGain(5) - ConduitLink.dbToLinear(-5)) < 0.01 || l.busGain(4) == 0 || l.busGain(4) != 1, "restored bus level is applied to the driver, not just shown")
+                check(l.busMuteMask & (1 << 4) != 0 && l.busMuteMask & (1 << 5) != 0, "restored bus mute is applied to the driver")
+                check(abs(l.busGain(10) - ConduitLink.dbToLinear(-9)) < 0.01, "bus 11-12 level (-9 dB) applied to the driver")
+            }
+            b.updateBus(2) { $0.gainDB = 0; $0.mute = false }; b.updateBus(5) { $0.gainDB = 0 }   // leave the live driver tidy
+        } else { print("  note  driver not installed: skipping the driver-side checks") }
+        b.shutdown(persist: false)
+
+        print("a crash (no Quit) loses at most the last ~0.4 s of changes")
+        let c = MixerModel(); c.start()
+        c.update(id) { $0.gainDB = -3 }
+        // Wait for the debounced autosave to reach disk (never calling shutdown(), as in a crash or force-quit).
+        var onDisk = false
+        let deadline = Date().addingTimeInterval(4)
+        while Date() < deadline && !onDisk {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+            onDisk = (try? PresetStore.load(name: "_last"))?.sources[id]?.gainDB == -3
+        }
+        check(onDisk, "a change reaches disk within a moment, even without quitting")
+        let d = MixerModel(); d.start()
+        check(d.routing(for: id).gainDB == -3, "and is restored by the next launch")
+        c.shutdown(persist: false); d.shutdown(persist: false)
+
+        print("corrupt settings file")
+        try? "not json".write(to: dir.appendingPathComponent("_last.json"), atomically: true, encoding: .utf8)
+        let e = MixerModel(); e.start()
+        check(e.routing.isEmpty && e.buses.allSatisfy { $0 == BusSettings() }, "a corrupt file falls back to defaults instead of crashing")
+        e.shutdown(persist: false)
+
+        print(failures == 0 ? "RESTORE TEST PASSED" : "RESTORE TEST FAILED (\(failures))")
+        return failures == 0
+    }
+
     static func run() -> Bool {
         let model = MixerModel()
         model.persistsState = false   // never read or write the user's saved routing

@@ -39,6 +39,7 @@ typedef struct {
 #define CONDUIT_ERR_LOOKUP 1001
 #define CONDUIT_ERR_PROTOCOL 1002
 #define CONDUIT_ERR_VERSION 1003
+#define CONDUIT_ERR_REFUSED 1004 /* the driver dropped the request: this user is not allowed to connect */
 int conduit_connect(const char* service, ConduitConnection* out);
 void conduit_disconnect(ConduitConnection* c);
 

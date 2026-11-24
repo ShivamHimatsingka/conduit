@@ -9,7 +9,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-VERSION="${VERSION:-0.0.2}"
+VERSION="${VERSION:-0.0.3}"
 APP_BUNDLE_ID="${APP_BUNDLE_ID:-com.conduit.app}"
 SIGN_IDENTITY="${SIGN_IDENTITY:--}"
 APP="build/Conduit.app"
@@ -26,6 +26,7 @@ else make build VERSION="$VERSION" SIGN_IDENTITY="$SIGN_IDENTITY" SIGN_FLAGS="--
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Conduit"
+cp app/Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 # The driver keeps its own signature; the app signature below seals it as a resource.
 ditto --norsrc --noextattr build/Conduit.driver "$APP/Contents/Resources/Conduit.driver"
 sed -e "s|@APP_BUNDLE_ID@|$APP_BUNDLE_ID|g" -e "s|@VERSION@|$VERSION|g" app/Info.plist.in > "$APP/Contents/Info.plist"

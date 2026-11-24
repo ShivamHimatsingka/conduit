@@ -10,6 +10,7 @@ public struct ConduitError: Error, CustomStringConvertible, Sendable {
         case 1001: return "Conduit driver not found (is it installed and is coreaudiod running?)"
         case 1002: return "unexpected reply from driver"
         case 1003: return "driver protocol version mismatch"
+        case 1004: return "the audio driver refused the connection (it is an older version that rejects this user after a reboot). Update the driver."
         default: return "Mach error \(code)"
         }
     }

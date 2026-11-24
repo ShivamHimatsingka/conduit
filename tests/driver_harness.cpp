@@ -20,6 +20,8 @@
 #include <cstring>
 #include <vector>
 
+#include "IpcServer.hpp"
+
 #ifndef CONDUIT_CHANNELS
 #define CONDUIT_CHANNELS 16
 #endif
@@ -87,6 +89,14 @@ int main(int argc, char** argv) {
     CHECK(gDrv != nullptr);
     if (!gDrv) return 1;
     gVt = *gDrv;
+
+    // IPC authorisation policy (regression: coreaudiod starts at boot while /dev/console is still owned by root)
+    CHECK(conduit::IpcServer::isAuthorised(0, 202, 501));      // root
+    CHECK(conduit::IpcServer::isAuthorised(202, 202, 0));      // the server's own uid
+    CHECK(conduit::IpcServer::isAuthorised(501, 202, 501));    // the user who owns the console now
+    CHECK(!conduit::IpcServer::isAuthorised(502, 202, 501));   // another local user
+    CHECK(!conduit::IpcServer::isAuthorised(501, 202, 0));     // at the login window the console is root's: a user is not let in...
+    CHECK(conduit::IpcServer::isAuthorised(501, 202, 501));    // ...but the same user is, as soon as the console owner is re-read
 
     // IUnknown
     LPVOID iface = nullptr;
